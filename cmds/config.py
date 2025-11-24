@@ -80,7 +80,7 @@ async def load(ctx):
     '''
         Command: loadConfig
         desc:
-            This command allows the user to laod the config settings for their
+            This command allows the user to load the config settings for their
             specific server. This allows them to load any saved configuration
             such as changes to the class dictionary and then target message
         Paramters:
@@ -90,9 +90,8 @@ async def load(ctx):
     # collect the file name
     file_name = settings.DATA_DIR / (ctx.guild.name.replace(" ", "") + '_config.json')
 
-    # open the file and update the data
-    with open(file_name, 'r') as cur_config:
-        settings.SERVER_CONFIG[ctx.guild.name] =  json.load(cur_config)
+    # use helper function to load config so same logic can be reused elsewhere
+    helper.load_server_config(file_name, settings.SERVER_CONFIG, ctx.bot)
 
     # let the admin know
     bot_channel = await helper.get_bot_channel(ctx)

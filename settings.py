@@ -2,12 +2,19 @@ import os
 
 from dotenv import find_dotenv, load_dotenv, set_key
 from pathlib import Path
+from typing import NewType, Optional
+
+from enum import Enum
 
 dotenv_file = find_dotenv()
 load_dotenv(dotenv_file)
 
-# GET DISCORD BOT TOEKN
-DISCORD_API_SECRET = os.getenv("DISCORD_TOKEN")
+# GET DISCORD BOT TOKEN
+# DISCORD_API_SECRET = os.getenv("DISCORD_TOKEN")
+Token = NewType("Token", str)
+DISCORD_API_SECRET: Optional[Token] = (
+    Token(os.getenv("DEV_DISCORD_TOKEN")) if os.getenv("DEV_DISCORD_TOKEN") else None # type: ignore
+)
 
 # DIRECTORIES
 BASE_DIR = Path(__file__).parent
@@ -21,6 +28,13 @@ SECONDARY_URL = 'http://stats.pointstreak.com/players/players-team-roster.html?t
 
 # SERVER CONFIG
 SERVER_CONFIG = {}
+
+# PLAYER TYPE
+class AttendanceType(str, Enum):
+    SKATERS = "Skaters"
+    SUBS = "Subs"
+    GOALIE = "Goalie"
+    OUT = "Out"
 
 # STATS DICTIONARY
 PLAYER_STAT_DICT = {

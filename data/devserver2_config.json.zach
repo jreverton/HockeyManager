@@ -1,0 +1,15 @@
+{
+    "attendance": {
+        "Forwards": [], 
+        "Defense": [], 
+        "Maybe": [], 
+        "Goalie": "", 
+        "Out": []
+    }, 
+    "bot_channel": 1148659729527230519, 
+    "file_prefix": "devserver2", 
+    "id": 1148658886140764241, 
+    "TeamID": "804660", 
+    "SeasonID": "21384", 
+    "DivID": "120127"
+}

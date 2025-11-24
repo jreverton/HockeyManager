@@ -1,28 +1,34 @@
+from pprint import pprint
 import discord
 import json
 import re
 import requests
 import time
 import settings
+from settings import AttendanceType
 
 from bs4 import BeautifulSoup as bs
 from selenium import webdriver
 
+
 def clear_name(guild_name, user):
-    if user in settings.SERVER_CONFIG[guild_name]['attendance']['Forwards']:
-        settings.SERVER_CONFIG[guild_name]['attendance']['Forwards'].remove(user)
+    # if user in settings.SERVER_CONFIG[guild_name]['attendance']['Forwards']:
+    #     settings.SERVER_CONFIG[guild_name]['attendance']['Forwards'].remove(user)
 
-    if user in settings.SERVER_CONFIG[guild_name]['attendance']['Defense']:
-        settings.SERVER_CONFIG[guild_name]['attendance']['Defense'].remove(user)
+    # if user in settings.SERVER_CONFIG[guild_name]['attendance']['Defense']:
+    #     settings.SERVER_CONFIG[guild_name]['attendance']['Defense'].remove(user)
 
-    if user in settings.SERVER_CONFIG[guild_name]['attendance']['Maybe']:
-        settings.SERVER_CONFIG[guild_name]['attendance']['Maybe'].remove(user)
+    if user in settings.SERVER_CONFIG[guild_name]['attendance'][AttendanceType.SKATERS.value]:
+        settings.SERVER_CONFIG[guild_name]['attendance'][AttendanceType.SKATERS.value].remove(user)
 
-    if settings.SERVER_CONFIG[guild_name]['attendance']['Goalie'] == user:
-        settings.SERVER_CONFIG[guild_name]['attendance']['Goalie'] = ''
+    if user in settings.SERVER_CONFIG[guild_name]['attendance']['Subs']:
+        settings.SERVER_CONFIG[guild_name]['attendance']['Subs'].remove(user)
 
-    if user in settings.SERVER_CONFIG[guild_name]['attendance']['Out']:
-        settings.SERVER_CONFIG[guild_name]['attendance']['Out'].remove(user)
+    if settings.SERVER_CONFIG[guild_name]['attendance'][AttendanceType.GOALIE.value] == user:
+        settings.SERVER_CONFIG[guild_name]['attendance'][AttendanceType.GOALIE.value] = ''
+
+    if user in settings.SERVER_CONFIG[guild_name]['attendance'][AttendanceType.OUT.value]:
+        settings.SERVER_CONFIG[guild_name]['attendance'][AttendanceType.OUT.value].remove(user)
 
 def create_browser():
     options =  webdriver.FirefoxOptions()
@@ -32,7 +38,8 @@ def create_browser():
 
 async def create_bot_channels(guild, overwrites):
     category = await guild.create_category(name="Bot Information Channels", overwrites=overwrites)
-    bot_channel = await guild.create_text_channel('bot-commands',topic="please use bot comands here.", category=category, overwrites=overwrites)
+    bot_channel = await guild.create_text_channel(
+        'bot-commands', topic="Please use bot comands here.", category=category, overwrites=overwrites)
 
     return bot_channel.id
 
@@ -44,20 +51,22 @@ def create_permissons(owner, role, default):
 
     }
 
+
 def create_server_config(data_dict, name, id):
     data_dict['attendance']= {
-        "Forwards": [],
-        "Defense": [],
-        "Maybe": [],
-        "Goalie": "",
-        "Out": []
-    }    
+            # legacy keys kept for compatibility; primary keys use Attendance values
+            AttendanceType.SKATERS.value: [],
+            AttendanceType.SUBS.value: [],
+            AttendanceType.GOALIE.value: "",
+            AttendanceType.OUT.value: []
+        }    
     data_dict['bot_channel'] = 0
     data_dict['file_prefix'] = name.replace(" ", "")
     data_dict['id'] = id
     data_dict['TeamID'] = 0
     data_dict['SeasonID'] = 0
     data_dict["DivID"] = 0
+
 
 def format_page_data(data):
     rows= []
@@ -81,6 +90,7 @@ def format_page_data(data):
                     i = i + 1
     return rows
 
+
 def format_team_info(tags):
     team_ranks = tags.find_all(class_="nova-team-rank")
     team_stats_v_div = tags.find_all(class_="morris-hover morris-default-style")
@@ -100,6 +110,7 @@ def format_team_info(tags):
         ]
     
     return ranks, stats
+
 
 def get_delayed_info(browser, guild_name):
     browser.get(settings.SECONDARY_URL + settings.SERVER_CONFIG[guild_name]['TeamID'] + "&seasonid=" + settings.SERVER_CONFIG[guild_name]['SeasonID'])
@@ -144,6 +155,7 @@ def get_team_stats(guild_name):
 
     return team_stat_embed
 
+
 def is_admin(ctx):
     '''
         Command Control function: isAdmin
@@ -159,75 +171,18 @@ def is_admin(ctx):
         return False
     return True
 
-def is_assitant(ctx):
-    if discord.utils.get(ctx.author.roles, name="Assistant Captain") == None:
+
+def is_alternate(ctx):
+    if discord.utils.get(ctx.author.roles, name="Alternate Captain") == None:
         return False
     return True
+
 
 def is_captain(ctx):
     if discord.utils.get(ctx.author.roles, name="Captain") == None:
         return False
     return True
 
-def lineup_embed(guild_name):
-    lineup_embed = discord.Embed(
-        color=discord.Color.brand_red(),
-        title="Current Line Up"
-    )
-
-    forward_lineup = ""
-    defense_lineup = ""
-    maybe_lineup = ""
-    out_lineup = ""
-
-    if settings.SERVER_CONFIG[guild_name]['attendance']['Goalie'] == "":
-        goalie_name = ""
-    else:
-        goalie_name = f"> {settings.SERVER_CONFIG[guild_name]['attendance']['Goalie']}"
-
-    for value in settings.SERVER_CONFIG[guild_name]['attendance']['Forwards']:
-        forward_lineup = forward_lineup + f"> {value}\n"
-
-    for value in settings.SERVER_CONFIG[guild_name]['attendance']['Defense']:
-        defense_lineup = defense_lineup + f"> {value}\n"
-    
-    for value in settings.SERVER_CONFIG[guild_name]['attendance']['Maybe']:
-        maybe_lineup = maybe_lineup + f"> {value}\n"
-
-    for value in settings.SERVER_CONFIG[guild_name]['attendance']['Out']:
-        out_lineup = out_lineup + f"> {value}\n"
-
-    lineup_embed.add_field(
-        name="Forwards:",
-        value=forward_lineup,
-        inline=False
-    )
-
-    lineup_embed.add_field(
-        name="Defense:",
-        value=defense_lineup,
-        inline=False
-    )
-
-    lineup_embed.add_field(
-        name="Maybe:",
-        value=maybe_lineup,
-        inline=False
-    )
-
-    lineup_embed.add_field(
-        name="Goalie:",
-        value=goalie_name,
-        inline=False
-    )
-
-    lineup_embed.add_field(
-        name="Out:",
-        value=out_lineup,
-        inline=False
-    )
-
-    return lineup_embed
 
 def pull_player_stats(guild_name, player):
     roster_home_page = bs(requests.get(settings.SECONDARY_URL + settings.SERVER_CONFIG[guild_name]['TeamID'] + "&seasonid=" + settings.SERVER_CONFIG[guild_name]['SeasonID']).text, "html.parser")
@@ -273,6 +228,7 @@ def pull_player_stats(guild_name, player):
     else:
         return " No name found"
 
+
 def pull_schedule(guild_name):
     team_homepage = bs(requests.get(settings.PRIMARY_URL + settings.SERVER_CONFIG[guild_name]['TeamID']+ "&seasonid=" + settings.SERVER_CONFIG[guild_name]['SeasonID']).text, "html.parser")
     schedule_table = team_homepage.find(class_="table-responsive")
@@ -301,6 +257,7 @@ def pull_schedule(guild_name):
 
     return home_teams, away_teams, game_day, game_time
 
+
 def save_config(ctx):
     # create the file name
     file_name = settings.DATA_DIR / (settings.SERVER_CONFIG[ctx.guild.name]['file_prefix'] + '_config.json')
@@ -308,15 +265,51 @@ def save_config(ctx):
     # save to the file
     with open(file_name, 'w') as cur_config:
         json.dump(settings.SERVER_CONFIG[ctx.guild.name],cur_config)
-        
-async def send_line_up(guild_name, user, position, channel, msg):
-    if position != 'Goalie':
-        settings.SERVER_CONFIG[guild_name]['attendance'][position].append(user)
-    else:
-        settings.SERVER_CONFIG[guild_name]['attendance']['Goalie'] = user
-    lineup = lineup_embed(guild_name)
-    if msg:
-        await msg.edit(embed=lineup)
-    else:
-        msg = await channel.send(embed=lineup)
-        return msg.id
+
+
+def load_server_config(file_path, server_config, bot=None):
+    """
+    Load a server config JSON file into the provided `server_config` dict.
+
+    Parameters:
+    - file_path: pathlib.Path or string pointing to a `_config.json` file
+    - server_config: dict to update (e.g., `settings.SERVER_CONFIG`)
+    - bot: optional discord.Bot instance. If provided, the function will
+      try to map the saved `id` field to an actual guild and use the
+      guild's real name as the key in `server_config`.
+
+    Returns: the key used to store the config in `server_config`.
+    """
+    # accept either Path or string
+    from pathlib import Path
+    p = Path(file_path)
+
+    with open(p, 'r') as f:
+        cfg = json.load(f)
+
+    # Prefer to use the guild id stored in the config to locate the guild
+    guild_key = None
+    try:
+        cfg_id = int(cfg.get('id', 0))
+    except Exception:
+        cfg_id = 0
+
+    if bot and cfg_id:
+        guild = bot.get_guild(cfg_id)
+        if guild:
+            guild_key = guild.name
+
+    # Fallback: derive prefix from filename and try to match a guild by prefix
+    if not guild_key and bot:
+        prefix = p.stem.replace('_config', '')
+        for g in bot.guilds:
+            if g.name.replace(' ', '') == prefix:
+                guild_key = g.name
+                break
+
+    # Last resort: use the prefix itself as the key
+    if not guild_key:
+        guild_key = p.stem.replace('_config', '')
+
+    server_config[guild_key] = cfg
+    return guild_key

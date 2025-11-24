@@ -13,9 +13,8 @@ async def attendanceClear(bot):
     if day == 6:
         for guild in bot.guilds:
             settings.SERVER_CONFIG[guild.name]['attendance'] = {
-                "Forwards": [],
-                "Defense": [],
-                "Maybe": [],
+                "Skaters": [],
+                "Subs": [],
                 "Goalie": "",
                 "Out": []
             } 

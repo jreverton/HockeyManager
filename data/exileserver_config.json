@@ -1,0 +1,14 @@
+{
+    "attendance": {
+        "Skaters": [],
+        "Subs": [], 
+        "Goalie": "", 
+        "Out": []
+    }, 
+    "bot_channel": 1148659729527230519, 
+    "file_prefix": "exileserver", 
+    "id": 1441212245311754356, 
+    "TeamID": "804660", 
+    "SeasonID": "21384", 
+    "DivID": "120127"
+}
