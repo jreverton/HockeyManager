@@ -52,19 +52,19 @@ async def adhocAttendance(ctx):
 @commands.check(helper.is_admin)
 async def checkDivId(ctx):
     bot_channel = await helper.get_bot_channel(ctx)
-    await bot_channel.send(f"Current Season id: {settings.SERVER_CONFIG[ctx.guild.name]['DivID']}")
+    await bot_channel.send(f"Current Season id: {settings.SERVER_CONFIG[ctx.guild.name]['division_id']}")
 
 @admin.command(brief="Check the current season id")
 @commands.check(helper.is_admin)
 async def checkSeasonId(ctx):
     bot_channel = await helper.get_bot_channel(ctx)
-    await bot_channel.send(f"Current Season id: {settings.SERVER_CONFIG[ctx.guild.name]['SeasonID']}")
+    await bot_channel.send(f"Current Season id: {settings.SERVER_CONFIG[ctx.guild.name]['season_id']}")
 
 @admin.command(brief="Check the current team id")
 @commands.check(helper.is_admin)
 async def checkTeamId(ctx):
     bot_channel = await helper.get_bot_channel(ctx)
-    await bot_channel.send(f"Current Team id: {settings.SERVER_CONFIG[ctx.guild.name]['TeamID']}")
+    await bot_channel.send(f"Current Team id: {settings.SERVER_CONFIG[ctx.guild.name]['team_id']}")
 
 @admin.command(brief="delete messages")
 @commands.check(helper.is_admin)
@@ -132,8 +132,8 @@ async def newDiv(ctx, id):
     # getting the bot channel
     bot_channel = await helper.get_bot_channel(ctx)
 
-    old_team_id = settings.SERVER_CONFIG[ctx.guild.name]['DivID']
-    settings.SERVER_CONFIG[ctx.guild.name]['DivID'] = id
+    old_team_id = settings.SERVER_CONFIG[ctx.guild.name]['division_id']
+    settings.SERVER_CONFIG[ctx.guild.name]['division_id'] = id
     
     await bot_channel.send(f"Team Id Updated. Previous id: {old_team_id}; New team id: {id}")
 
@@ -154,10 +154,10 @@ async def newSeason(ctx, id):
     # getting the bot channel  
     bot_channel = await helper.get_bot_channel(ctx)
 
-    old_season_id = settings.SERVER_CONFIG[ctx.guild.name]['SeasonID']   
-    settings.SERVER_CONFIG[ctx.guild.name]['SeasonID'] = id
+    old_season_id = settings.SERVER_CONFIG[ctx.guild.name]['season_id']   
+    settings.SERVER_CONFIG[ctx.guild.name]['season_id'] = id
     
-    await bot_channel.send(f"Season Id Updated. Previous id: {old_season_id}; New Season Id: {id}")
+    await bot_channel.send(f"Season ID updated from {old_season_id} to {id}")
 
 @admin.command(brief="Change Team ID")
 @commands.check(helper.is_admin)
@@ -176,10 +176,10 @@ async def newTeam(ctx, id):
     # getting the bot channel
     bot_channel = await helper.get_bot_channel(ctx)
 
-    old_team_id = settings.SERVER_CONFIG[ctx.guild.name]['TeamID']
-    settings.SERVER_CONFIG[ctx.guild.name]['TeamID'] = id
+    old_team_id = settings.SERVER_CONFIG[ctx.guild.name]['team_id']
+    settings.SERVER_CONFIG[ctx.guild.name]['team_id'] = id
     
-    await bot_channel.send(f"Team Id Updated. Previous id: {old_team_id}; New team id: {id}")
+    await bot_channel.send(f"Team ID updated from {old_team_id} to {id}")
 
 @admin.command(brief="Send team schedule")
 @commands.check(helper.is_admin)

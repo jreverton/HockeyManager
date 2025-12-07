@@ -1,12 +1,13 @@
-import argparse
+import discord
+from guild.config import get_guild_config
 import requests
 
 from bs4 import BeautifulSoup
 from datetime import datetime, timezone
-from pprint import pprint
 from urllib.parse import urlencode
-from schedule.model import Schedule
+from schedule import Schedule
 from typing import List
+from guild import ChannelConfig, get_channel_config
 
 
 TEAM_NAME_CLASS = 'nova-title'
@@ -18,29 +19,31 @@ SCHEDULE_DATETIME_FORMAT = '%a, %b %d %I:%M %p'
 BASE_SCHEDULE_URL = 'https://stats.pointstreak.com/players/players-team-schedule.html'
 
 
-def get_team_data(team_id, season_id) -> tuple[str, List[Schedule]]:
+def retrieve_team_data(team_id, season_id) -> tuple[str, str, List[Schedule]]:
     schedule_url = '{}?{}'.format(BASE_SCHEDULE_URL, urlencode({'seasonid': season_id, 'teamid': team_id}))
-    schedule_html = get_schedule(schedule_url)
-    return parse_schedule(schedule_html)
+    schedule_html = retrieve_schedule(schedule_url)
+
+    team_name, schedule_data = parse_schedule(schedule_html)
+    return team_name, schedule_url, schedule_data
 
 
-def get_schedule(schedule_url):
+def retrieve_schedule(schedule_url):
     print('GET {}'.format(schedule_url))
     r = requests.get(schedule_url)
     return r.text
 
 
-def parse_schedule(schedule_html):
+def parse_schedule(schedule_html) -> tuple[str, List[Schedule]]:
     schedule_data: List[Schedule] = []
     current_year = datetime.now().year
 
     soup = BeautifulSoup(schedule_html, 'html.parser')
 
-    team_name_group = soup.find_all('span', TEAM_NAME_CLASS)[0]
+    team_name_group = soup.find_all('span', class_=TEAM_NAME_CLASS)[0]
     team_name_span = team_name_group.find_all('span')[0]
     team_name = team_name_span.text
 
-    schedule_table = soup.find_all('table', SCHEDULE_TABLE_CLASS)[0]
+    schedule_table = soup.find_all('table', class_=SCHEDULE_TABLE_CLASS)[0]
     schedule_body = schedule_table.find_all('tbody')[0]
     schedule_rows = schedule_body.find_all('tr')
 
@@ -68,9 +71,6 @@ def parse_schedule(schedule_html):
             rink=rink,
         ))
 
-    print(team_name)
-    pprint(schedule_data)
-
     return team_name, schedule_data
 
 
@@ -88,35 +88,18 @@ def get_next_game_from_schedules(schedule_data: List[Schedule]) -> Schedule|None
     return next_game
 
 
-def james() -> tuple[str, Schedule|None]:
-    season_id = '21671'  # Example season D
-    team_id = '814893'    # Example team ID
-    team_name, schedule_data = get_team_data(team_id, season_id)
+# TODO JRE: Move this over to rollCall.py, but using the bot context instead of the user command context
+"""
+Returns the schedule URL and next game for the guild's configured team and season.
+"""
+def get_next_game(guild: discord.Guild, channel_name: str) -> tuple[str, Schedule|None]: # schedule_url, next_game
+    # Find the first channel config whose 'name' property equals channel_name
+    guild_data = get_guild_config(guild)
+    channel_data: ChannelConfig | None = get_channel_config(guild, channel_name)
+    if channel_data is None:
+        return "", None
+
+    _, schedule_url, schedule_data = retrieve_team_data(channel_data["team_id"], guild_data["season_id"])
     next_game = get_next_game_from_schedules(schedule_data)
 
-    return team_name, next_game
-
-
-def create_roll_call():
-    pass
-
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--base-url', default=BASE_SCHEDULE_URL)
-    parser.add_argument('--season-id')
-    parser.add_argument('--team-id')
-    args = parser.parse_args()
-
-    schedule_url = '{}?{}'.format(args.base_url, urlencode({'seasonid': args.season_id, 'teamid': args.team_id}))
-
-    schedule_html = get_schedule(schedule_url)
-
-    team_name, schedule_data = parse_schedule(schedule_html)
-
-    print(team_name)
-    pprint(schedule_data)
-
-
-if __name__ == '__main__':
-    main()
+    return schedule_url, next_game

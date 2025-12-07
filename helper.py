@@ -1,34 +1,49 @@
-from pprint import pprint
 import discord
-import json
 import re
 import requests
 import time
 import settings
-from settings import AttendanceType
+from guild.models import AttendanceType
+from guild import GuildConfig, ChannelConfig, get_guild_config, get_channel_config
 
 from bs4 import BeautifulSoup as bs
 from selenium import webdriver
 
 
-def clear_name(guild_name, user):
-    # if user in settings.SERVER_CONFIG[guild_name]['attendance']['Forwards']:
-    #     settings.SERVER_CONFIG[guild_name]['attendance']['Forwards'].remove(user)
+def clear_name(guild: discord.Guild, channel_name: str, user_name: str):
+    channel_config: ChannelConfig | None = get_channel_config(guild, channel_name)
+    if channel_config is None:
+        print(f"clear_name(): Channel config not found for channel: {channel_name}")
+        return
+    
+    attendance_data = channel_config['attendance']
+    user_mention = get_name_mention(guild, user_name)
 
-    # if user in settings.SERVER_CONFIG[guild_name]['attendance']['Defense']:
-    #     settings.SERVER_CONFIG[guild_name]['attendance']['Defense'].remove(user)
+    if user_name in attendance_data[AttendanceType.SKATERS.value]:
+        attendance_data[AttendanceType.SKATERS.value].remove(user_name)
+    if user_mention in attendance_data[AttendanceType.SKATERS.value]:
+        attendance_data[AttendanceType.SKATERS.value].remove(user_mention)
 
-    if user in settings.SERVER_CONFIG[guild_name]['attendance'][AttendanceType.SKATERS.value]:
-        settings.SERVER_CONFIG[guild_name]['attendance'][AttendanceType.SKATERS.value].remove(user)
+    if user_name in attendance_data[AttendanceType.SUBS.value]:
+        attendance_data[AttendanceType.SUBS.value].remove(user_name)
+    if user_mention in attendance_data[AttendanceType.SUBS.value]:
+        attendance_data[AttendanceType.SUBS.value].remove(user_mention)
 
-    if user in settings.SERVER_CONFIG[guild_name]['attendance']['Subs']:
-        settings.SERVER_CONFIG[guild_name]['attendance']['Subs'].remove(user)
+    if user_name in attendance_data[AttendanceType.OUT.value]:
+        attendance_data[AttendanceType.OUT.value].remove(user_name)
+    if user_name in attendance_data[AttendanceType.OUT.value]:
+        attendance_data[AttendanceType.OUT.value].remove(user_name)
 
-    if settings.SERVER_CONFIG[guild_name]['attendance'][AttendanceType.GOALIE.value] == user:
-        settings.SERVER_CONFIG[guild_name]['attendance'][AttendanceType.GOALIE.value] = ''
+    if attendance_data[AttendanceType.GOALIE.value] == user_name or attendance_data[AttendanceType.GOALIE.value] == user_mention:
+        attendance_data[AttendanceType.GOALIE.value] = ''
 
-    if user in settings.SERVER_CONFIG[guild_name]['attendance'][AttendanceType.OUT.value]:
-        settings.SERVER_CONFIG[guild_name]['attendance'][AttendanceType.OUT.value].remove(user)
+
+def get_name_mention(guild: discord.Guild, user_name: str) -> str:
+    member = guild.get_member_named(user_name)
+    player = member.mention if member else user_name
+
+    return player
+
 
 def create_browser():
     options =  webdriver.FirefoxOptions()
@@ -36,12 +51,14 @@ def create_browser():
     browser = webdriver.Firefox(options=options)
     return browser
 
-async def create_bot_channels(guild, overwrites):
+
+async def create_bot_channels(guild, overwrites) -> int:
     category = await guild.create_category(name="Bot Information Channels", overwrites=overwrites)
     bot_channel = await guild.create_text_channel(
-        'bot-commands', topic="Please use bot comands here.", category=category, overwrites=overwrites)
+        'manager-bot', topic="Please use bot comands here.", category=category, overwrites=overwrites)
 
     return bot_channel.id
+
 
 def create_permissons(owner, role, default):
     return {
@@ -50,45 +67,6 @@ def create_permissons(owner, role, default):
         role: discord.PermissionOverwrite(read_messages=True, send_messages=True)
 
     }
-
-
-def create_server_config(data_dict, name, id):
-    data_dict['attendance']= {
-            # legacy keys kept for compatibility; primary keys use Attendance values
-            AttendanceType.SKATERS.value: [],
-            AttendanceType.SUBS.value: [],
-            AttendanceType.GOALIE.value: "",
-            AttendanceType.OUT.value: []
-        }    
-    data_dict['bot_channel'] = 0
-    data_dict['file_prefix'] = name.replace(" ", "")
-    data_dict['id'] = id
-    data_dict['TeamID'] = 0
-    data_dict['SeasonID'] = 0
-    data_dict["DivID"] = 0
-
-
-def format_page_data(data):
-    rows= []
-    i = 0
-    for row in data:
-        temp = []
-        for cell in row.contents:
-            if cell.text == '' or cell.text== '\n' or cell.text == "\t" or cell.text == " ":
-                continue
-            else:
-                if i%14 == 13:
-                    temp.append(cell.text.replace("\t", '').replace("\n", ''))
-                    rows.append(temp)
-                    i = i + 1
-                    temp=[]
-                elif i%14 == 0:
-                    temp.append(cell.text.replace("\t", '').replace("\n", '')[1:])
-                    i = i + 1
-                else:
-                    temp.append(cell.text.replace("\t", '').replace("\n", ''))
-                    i = i + 1
-    return rows
 
 
 def format_team_info(tags):
@@ -112,28 +90,33 @@ def format_team_info(tags):
     return ranks, stats
 
 
-def get_delayed_info(browser, guild_name):
-    browser.get(settings.SECONDARY_URL + settings.SERVER_CONFIG[guild_name]['TeamID'] + "&seasonid=" + settings.SERVER_CONFIG[guild_name]['SeasonID'])
+def get_delayed_info(browser, guild: discord.Guild, channel_name: str):
+    guild_config: GuildConfig = get_guild_config(guild)
+    channel_config: ChannelConfig | None = get_channel_config(guild, channel_name)
+    if channel_config is None:
+
+        # TODO JRE: Should this talk to the channel instead?
+        
+        print(f"get_delayed_info(): Channel config not found for channel: {channel_name}")
+        return
+
+    browser.get(settings.SECONDARY_URL + channel_config['team_id'] + "&seasonid=" + guild_config['season_id'])
     time.sleep(2)
     team_info = browser.page_source
     browser.quit()
     team_info_soup = bs(team_info, "html.parser")
     return team_info_soup
 
-async def get_bot_channel(ctx):
-    bot_channel = discord.utils.get(ctx.guild.channels, name="bot-commands")
+
+async def get_bot_channel(ctx) -> discord.TextChannel:
+    bot_channel = discord.utils.get(ctx.guild.text_channels, name="manager-bot")
     return bot_channel
 
-def get_team_standings(guild_name):
-    standings_page = bs(requests.get("http://stats.pointstreak.com/players/players-division-standings.html?divisionid=" + settings.SERVER_CONFIG[guild_name]['DivID'] +"&seasonid=" +settings.SERVER_CONFIG[guild_name]['SeasonID']).text, "html.parser")
-    standings_table = standings_page.find_all(class_="table table-hover table-striped nova-stats-table")[0].find_all("tr")
-    standings_table = standings_table[1:]
-    cell_data = format_page_data(standings_table)
-    return cell_data
 
-def get_team_stats(guild_name):
+# TODO JRE: This needs to take a channel name parameter
+def get_team_stats(guild: discord.Guild, channel_name: str) -> discord.Embed:
     browser = create_browser()
-    team_stats = get_delayed_info(browser, guild_name)
+    team_stats = get_delayed_info(browser, guild, channel_name)
     ranks, stats =  format_team_info(team_stats)
 
     team_stat_embed = discord.Embed(
@@ -185,7 +168,7 @@ def is_captain(ctx):
 
 
 def pull_player_stats(guild_name, player):
-    roster_home_page = bs(requests.get(settings.SECONDARY_URL + settings.SERVER_CONFIG[guild_name]['TeamID'] + "&seasonid=" + settings.SERVER_CONFIG[guild_name]['SeasonID']).text, "html.parser")
+    roster_home_page = bs(requests.get(settings.SECONDARY_URL + settings.SERVER_CONFIG[guild_name]['team_id'] + "&seasonid=" + settings.SERVER_CONFIG[guild_name]['season_id']).text, "html.parser")
     player_stats = roster_home_page.find_all("a", string=re.compile(player))
     if len(player_stats) == 3:
         player_stats.pop(1)
@@ -230,7 +213,7 @@ def pull_player_stats(guild_name, player):
 
 
 def pull_schedule(guild_name):
-    team_homepage = bs(requests.get(settings.PRIMARY_URL + settings.SERVER_CONFIG[guild_name]['TeamID']+ "&seasonid=" + settings.SERVER_CONFIG[guild_name]['SeasonID']).text, "html.parser")
+    team_homepage = bs(requests.get(settings.PRIMARY_URL + settings.SERVER_CONFIG[guild_name]['team_id']+ "&seasonid=" + settings.SERVER_CONFIG[guild_name]['season_id']).text, "html.parser")
     schedule_table = team_homepage.find(class_="table-responsive")
     schedule_games = schedule_table.findAll("tr")
 
@@ -256,60 +239,3 @@ def pull_schedule(guild_name):
             index = index + 1
 
     return home_teams, away_teams, game_day, game_time
-
-
-def save_config(ctx):
-    # create the file name
-    file_name = settings.DATA_DIR / (settings.SERVER_CONFIG[ctx.guild.name]['file_prefix'] + '_config.json')
-
-    # save to the file
-    with open(file_name, 'w') as cur_config:
-        json.dump(settings.SERVER_CONFIG[ctx.guild.name],cur_config)
-
-
-def load_server_config(file_path, server_config, bot=None):
-    """
-    Load a server config JSON file into the provided `server_config` dict.
-
-    Parameters:
-    - file_path: pathlib.Path or string pointing to a `_config.json` file
-    - server_config: dict to update (e.g., `settings.SERVER_CONFIG`)
-    - bot: optional discord.Bot instance. If provided, the function will
-      try to map the saved `id` field to an actual guild and use the
-      guild's real name as the key in `server_config`.
-
-    Returns: the key used to store the config in `server_config`.
-    """
-    # accept either Path or string
-    from pathlib import Path
-    p = Path(file_path)
-
-    with open(p, 'r') as f:
-        cfg = json.load(f)
-
-    # Prefer to use the guild id stored in the config to locate the guild
-    guild_key = None
-    try:
-        cfg_id = int(cfg.get('id', 0))
-    except Exception:
-        cfg_id = 0
-
-    if bot and cfg_id:
-        guild = bot.get_guild(cfg_id)
-        if guild:
-            guild_key = guild.name
-
-    # Fallback: derive prefix from filename and try to match a guild by prefix
-    if not guild_key and bot:
-        prefix = p.stem.replace('_config', '')
-        for g in bot.guilds:
-            if g.name.replace(' ', '') == prefix:
-                guild_key = g.name
-                break
-
-    # Last resort: use the prefix itself as the key
-    if not guild_key:
-        guild_key = p.stem.replace('_config', '')
-
-    server_config[guild_key] = cfg
-    return guild_key

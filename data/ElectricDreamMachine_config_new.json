@@ -1,23 +1,26 @@
 {
-  "id": 1441212245311754356,
-  "bot_channel": 1442633706333274345,
-  "file_prefix": "exileserver",
-  "roll_call_channel_suffix": "-roll-call",
+  "id": 0,
+  "bot_channel": 0,
+  "file_prefix": "ElectricDreamMachine",
+  "roll_call_channel_suffix": "developer",
+  "real_roll_call_channel_suffix": "-roll-call",
   "season_id": "21671",
   "channels": [
+    {
+      "name": "developer",
+      "attendance": { "Skaters": [], "Subs": [], "Goalie": "", "Out": [] },
+      "team_id": "814869",
+      "division_id": "121544",
+      "role_names": ["C6_players", "C6_subs"]
+    }
+  ],
+  "real_channels": [
     {
       "name": "c5-roll-call",
       "attendance": { "Skaters": [], "Subs": [], "Goalie": "", "Out": [] },
       "team_id": "814862",
       "division_id": "121543",
       "role_names": ["C5_players", "C5_subs"]
-    },
-    {
-      "name": "c6-roll-call",
-      "attendance": { "Skaters": [], "Subs": [], "Goalie": "", "Out": [] },
-      "team_id": "814869",
-      "division_id": "121544",
-      "role_names": ["C6_players", "C6_subs"]
     },
     {
       "name": "c7-roll-call",
@@ -35,12 +38,7 @@
     },
     {
       "name": "d2-roll-call",
-      "attendance": {
-        "Skaters": [],
-        "Subs": [],
-        "Goalie": "",
-        "Out": ["James #33"]
-      },
+      "attendance": { "Skaters": [], "Subs": [], "Goalie": "", "Out": [] },
       "team_id": "814893",
       "division_id": "121548",
       "role_names": ["D2_players", "D2_subs"]

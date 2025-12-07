@@ -35,12 +35,7 @@
     },
     {
       "name": "d2-roll-call",
-      "attendance": {
-        "Skaters": [],
-        "Subs": [],
-        "Goalie": "",
-        "Out": ["James #33"]
-      },
+      "attendance": { "Skaters": [], "Subs": [], "Goalie": "", "Out": [] },
       "team_id": "814893",
       "division_id": "121548",
       "role_names": ["D2_players", "D2_subs"]

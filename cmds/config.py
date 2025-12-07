@@ -11,15 +11,18 @@ async def config(ctx):
     if ctx.invoked_subcommand is None:
         await ctx.send("A subcommand was not passed")
 
+'''
+"!config changeFilePrefix <newPrefix>" command
+'''
 @config.command(brief="change the file name prefix")
 @commands.check(helper.is_admin)
-async def changeFilePrefix(ctx, prefix: str):
+async def changeFilePrefix(ctx: commands.Context, prefix: str):
     '''
         Command: changeFilePrefix
         desc:
-            change the file prerfix attached to each server file. This will 
+            change the file prefix attached to each server file. This will 
             affect sending the attendance, archiving channels, and saving
-            the server configfuration. It will deelte the old file so as 
+            the server configuration. It will delete the old file so as 
             not to clutter the server
         parameter:
             ctx - standard context object for a command, 
@@ -40,9 +43,12 @@ async def changeFilePrefix(ctx, prefix: str):
 
     # let the admin know
     bot_channel = await helper.get_bot_channel(ctx)
-    await bot_channel.send("File Prefix Changed")
+    await bot_channel.send(f"File Prefix Changed from {old_prefix} to {prefix}")
     
 
+'''
+"!config list" command
+'''
 @config.command(brief="list the current configuration")
 @commands.check(helper.is_admin)
 async def list(ctx):
@@ -62,7 +68,6 @@ async def list(ctx):
         # create the embed
         config_embed = discord.Embed(
             title="Current Configuration",
-            description="Here is your current configuration:",
             color=discord.Color.dark_purple()
         )
 
@@ -74,6 +79,9 @@ async def list(ctx):
     else:
         await bot_channel.send("No config file loaded.")
 
+'''
+"!config load" command
+'''
 @config.command(brief="load the server configuration from a file")
 @commands.check(helper.is_admin)
 async def load(ctx):
@@ -90,13 +98,16 @@ async def load(ctx):
     # collect the file name
     file_name = settings.DATA_DIR / (ctx.guild.name.replace(" ", "") + '_config.json')
 
-    # use helper function to load config so same logic can be reused elsewhere
-    helper.load_server_config(file_name, settings.SERVER_CONFIG, ctx.bot)
+    # load the config from file
+    load_server_config(file_name, settings.SERVER_CONFIG, ctx.bot)
 
     # let the admin know
     bot_channel = await helper.get_bot_channel(ctx)
     await bot_channel.send("Config Loaded")
 
+'''
+"!config save" command
+'''
 @config.command(brief="save the current configuration to a file")
 @commands.check(helper.is_admin)
 async def save(ctx):
@@ -110,11 +121,74 @@ async def save(ctx):
             ctx - standard context object for a command, 
                 see https://discordpy.readthedocs.io/en/stable/ext/commands/commands.html 
     '''
-    helper.save_config(ctx)
+    save_config(ctx)
 
     # let the admin know
     bot_channel = await helper.get_bot_channel(ctx)
     await bot_channel.send("Configuration has been saved")
+
+
+"""
+load_server_config: Helper function to load a server config file
+"""
+def load_server_config(file_path, server_config, bot=None):
+    """
+    Load a server config JSON file into the provided `server_config` dict.
+
+    Parameters:
+    - file_path: pathlib.Path or string pointing to a `_config.json` file
+    - server_config: dict to update (e.g., `settings.SERVER_CONFIG`)
+    - bot: optional discord.Bot instance. If provided, the function will
+      try to map the saved `id` field to an actual guild and use the
+      guild's real name as the key in `server_config`.
+
+    Returns: the key used to store the config in `server_config`.
+    """
+    # accept either Path or string
+    from pathlib import Path
+    p = Path(file_path)
+
+    with open(p, 'r') as f:
+        cfg = json.load(f)
+
+    # Prefer to use the guild id stored in the config to locate the guild
+    guild_key = None
+    try:
+        cfg_id = int(cfg.get('id', 0))
+    except Exception:
+        cfg_id = 0
+
+    if bot and cfg_id:
+        guild = bot.get_guild(cfg_id)
+        if guild:
+            guild_key = guild.name
+
+    # Fallback: derive prefix from filename and try to match a guild by prefix
+    if not guild_key and bot:
+        prefix = p.stem.replace('_config', '')
+        for g in bot.guilds:
+            if g.name.replace(' ', '') == prefix:
+                guild_key = g.name
+                break
+
+    # Last resort: use the prefix itself as the key
+    if not guild_key:
+        guild_key = p.stem.replace('_config', '')
+
+    server_config[guild_key] = cfg
+    return guild_key
+
+"""
+save_config: Helper function to save a server config to a file
+"""
+def save_config(ctx):
+    # create the file name
+    file_name = settings.DATA_DIR / (settings.SERVER_CONFIG[ctx.guild.name]['file_prefix'] + '_config.json')
+
+    # save to the file
+    with open(file_name, 'w') as cur_config:
+        json.dump(settings.SERVER_CONFIG[ctx.guild.name], cur_config)
+
 
 async def setup(bot):
     print("Adding config commands to bot")

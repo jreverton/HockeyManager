@@ -1,14 +1,18 @@
+from datetime import datetime
 import discord
+from cmds.config import load_server_config
+from guild.config import create_new_guild_config
+from guild.models import GuildConfig
 import helper
 import settings
 import schedule.parser as parser
-
-from discord.ext import commands
-from tasks.rollCall import RollCallView
+  
+from tasks.rollCall import create_roll_calls
 from views import WhoAreYouView
 from pprint import pprint
+from discord.ext import commands
 
-def run():
+def run(): # James version
     '''
         Function: Run
         Desc:
@@ -19,61 +23,22 @@ def run():
     '''
     # Intent seup, necessary with new bot api
     intents = discord.Intents.default()
-    intents.guilds = True         # Required for guild-related events
-    intents.messages = True       # Required to receive messages in guilds and DMs
-    intents.message_content = True # Required to access message.content, message.embeds, etc.
+    intents.guilds = True           # Required for guild-related events
+    intents.members = True          # Required to access guild members
+    intents.messages = True         # Required to receive messages in guilds and DMs
+    intents.message_content = True  # Required to access message.content, message.embeds, etc.
 
     # Create the bot name and instance with the desired command prefix 
     # and necessary intents
     edm_manager = commands.Bot(command_prefix="!", intents=intents)
 
-    @edm_manager.command(name="helloworld")
-    async def helloworld(ctx: commands.Context):
-        """ Respond with hello user """
-        print(f"Hello World: {ctx.author.mention}")
-        pprint(ctx.channel)
-        await ctx.send(f"Hello {ctx.author.mention}!")
-
-    @edm_manager.command(name="schedule")
-    async def grab_shedule(ctx):
-        """ Call Johnson's schedule parser and return schedule """
-        team_name, next_game_data = parser.james()
-
-        # TODO: Format the output nicely for Discord message
-
-        print(f"Schedule for {team_name}:")
-        pprint(next_game_data)
-        # await ctx.send(f"{team_name}\n\n {next_game}")
-        await ctx.send(f"/create title:'{next_game_data.home_team} vs {next_game_data.away_team}' datetime:'{next_game_data.datetime}'")
-    
-    @edm_manager.command(name="load")
-    async def load_config(ctx: commands.Context):
-        config.load(ctx);
-    
+    # TODO JRE: Remove this temporary rollcall command
     @edm_manager.command(name="rollcall")
-    async def create_roll_call(ctx: commands.Context):
-
-        """ Manually trigger a roll call message """
-        team_name, next_game_data = parser.james()
-
-        if not next_game_data:
-            await ctx.send("No upcoming games found in the schedule.")
-            return
-
-        # TODO: Figure out the devserver configuration so we can list players In, Out, Goalie and Sub
-
-        gametime_embed = discord.Embed(
-                    color=discord.Color.brand_green(),
-                    title="Next Game"
-                )
-        gametime_embed.add_field(name="Date:", value=next_game_data.datetime.date(), inline=False)
-        gametime_embed.add_field(name="Time:", value=next_game_data.datetime.time(), inline=False)
-        gametime_embed.add_field(name="Home Team:", value=next_game_data.home_team, inline=False)
-        gametime_embed.add_field(name="Away Team:", value=next_game_data.away_team, inline=False)
-        rollcall_view = RollCallView(next_game_data.datetime) 
-        await ctx.channel.send(embed=gametime_embed)
-        await ctx.channel.send(f"Alright, who is in?", view=rollcall_view)
-
+    async def roll_call(ctx: commands.Context):
+        if ctx.guild is not None:
+            await create_roll_calls(ctx.guild)
+        else:
+            await ctx.send("This command can only be used in a server (guild).")
 
     @edm_manager.event
     async def on_ready():
@@ -86,7 +51,7 @@ def run():
             Parameters:
                 None
         '''
-        print("EDM is playing.")
+        print("EDM Manager is loading...")
 
         # Load the task files
         for task_file in settings.TASKS_DIR.glob("*.py"):
@@ -100,14 +65,16 @@ def run():
                 print(f"loading file: {command_file.name}")
                 await edm_manager.load_extension(f"cmds.{command_file.name[:-3]}")
 
+        # TODO JRE: Remove this temporary config load
         # Load any server configurations from file
-        for config in settings.DATA_DIR.glob("*_config.json"):
+        for config in settings.DATA_DIR.glob("*_config_new.json"):
+        # for config in settings.DATA_DIR.glob("*_config.json"):
             print(f"Loading server config file: {config.name}")
-            helper.load_server_config(config, settings.SERVER_CONFIG, edm_manager)
+            load_server_config(config, settings.SERVER_CONFIG, edm_manager)
 
     
     @edm_manager.event
-    async def on_guild_join(guild):
+    async def on_guild_join(guild: discord.Guild):
         '''
             Event Override: on_guild_join
             desc:
@@ -122,29 +89,35 @@ def run():
         print('on_guild_join()')
         pprint(guild)
 
-        # create the empty data dictionary and pass it to builder function
-        settings.SERVER_CONFIG[guild.name] = {}
-        helper.create_server_config(settings.SERVER_CONFIG[guild.name], guild.name, guild.id)
+        # create a new guild_config and pass it to builder function
+        guild_config: GuildConfig = create_new_guild_config(settings.SERVER_CONFIG, guild)
 
-        # check to see if the bot and feedback channels exist
-        if discord.utils.get(guild.channels, name="bot-commands") != None:
-            settings.SERVER_CONFIG[guild.name]['bot_channel'] = discord.utils.get(guild.channels, name="bot-commands").id
+        # check to see if the bot channel exists
+        if discord.utils.get(guild.channels, name="manager-bot") != None:
+            bot_channel: discord.TextChannel | None = discord.utils.get(guild.text_channels, name="manager-bot")
+            guild_config["bot_channel"] = bot_channel.id if bot_channel else 0
 
         # create the channels
-        if settings.SERVER_CONFIG[guild.name]["bot_channel"] == 0:
+        if guild_config["bot_channel"] == 0:
             # create the private permissions
             overwrites = helper.create_permissons(guild.owner, discord.utils.get(guild.roles, name="Admin"), guild.default_role)
             
-            bot = await helper.create_bot_channels(guild, overwrites)
+            bot_channel_id = await helper.create_bot_channels(guild, overwrites)
 
-            # update the data dict fort bot id's
-            settings.SERVER_CONFIG[guild.name]["bot_channel"] = bot
+            # update the data dict for bot id's
+            guild_config["bot_channel"] = bot_channel_id
 
-    print("Starting EDM Manager Bot with secret: " + settings.DISCORD_API_SECRET)
-    edm_manager.run(settings.DISCORD_API_SECRET)
+    edm_manager.run(settings.DISCORD_API_SECRET) # type: ignore
+
+
+
+
+
+
+
 
 ''' Zach's original run code '''
-def orig_run():
+def orig_run(): # Zach version
     '''
         Function: Run
         Desc:
@@ -191,11 +164,11 @@ def orig_run():
 
         # create the empty data dictionary and pass it to builder function
         settings.SERVER_CONFIG[guild.name] = {}
-        helper.create_server_config(settings.SERVER_CONFIG[guild.name], guild.name, guild.id)
+        helper.create_new_guild_config(settings.SERVER_CONFIG[guild.name], guild.name, guild.id)
 
         # check to see if the bot and feedback channels exist
-        if discord.utils.get(guild.channels, name="bot-commands") != None:
-            settings.SERVER_CONFIG[guild.name]['bot_channel'] = discord.utils.get(guild.channels, name="bot-commands").id
+        if discord.utils.get(guild.channels, name="manager-bot") != None:
+            settings.SERVER_CONFIG[guild.name]['bot_channel'] = discord.utils.get(guild.channels, name="manager-bot").id
 
         # create the channels
         if settings.SERVER_CONFIG[guild.name]["bot_channel"] == 0:

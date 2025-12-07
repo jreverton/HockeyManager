@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from selenium import webdriver
 
 # TEAM SCHEDULE
-# team_homepage = bs(requests.get(settings.PRIMARY_URL + settings.TEAM_ID + "&seasonid=" + settings.SEASON_ID).text, "html.parser")
+# team_homepage = bs(requests.get(settings.PRIMARY_URL + settings.team_id + "&seasonid=" + settings.season_id).text, "html.parser")
 # schedule_table = team_homepage.find(class_="table-responsive")
 # schedule_games = schedule_table.findAll("tr")
 
