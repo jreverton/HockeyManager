@@ -14,7 +14,7 @@ def create_new_guild_config(server_config: ServerConfigDict, guild: discord.Guil
         bot_channel = 0,
         file_prefix = guild.name.replace(" ", ""),
         roll_call_channel_suffix = "-roll-call",
-        season_id = "0",
+        season_id = 0,
         channels = []
     )
     
@@ -23,8 +23,8 @@ def create_new_guild_config(server_config: ServerConfigDict, guild: discord.Guil
         channel_config: ChannelConfig = ChannelConfig(
             name = channel.name,
             channel_id = channel.id,
-            team_id = "0",
-            division_id = "0",
+            team_calendar_id = "0",
+            gs_team_id = 0,
             role_names = [],
             next_game = None,
             attendance = {

@@ -25,8 +25,8 @@ class ChannelConfig(TypedDict):
     """Structure for per-channel configuration (roll-call channels)."""
     name: str
     channel_id: int
-    team_id: str
-    division_id: str
+    team_calendar_id: str
+    gs_team_id: int
     role_names: list[str]
     next_game: datetime | None
     attendance: AttendanceDict
@@ -38,7 +38,7 @@ class GuildConfig(TypedDict):
     bot_channel: int
     file_prefix: str
     roll_call_channel_suffix: str
-    season_id: str
+    season_id: int
     channels: list[ChannelConfig]
 
 

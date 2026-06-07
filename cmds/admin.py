@@ -1,7 +1,8 @@
 import discord
 import helper
 import settings
-import views
+from tasks.rollCall import RollCallView
+from guild.config import get_channel_config, get_guild_config
 
 from datetime import datetime, timedelta
 from discord.ext import commands
@@ -23,6 +24,8 @@ async def adhocAttendance(ctx):
 
     tata =  discord.utils.get(team_guild.roles, name="Tata")
     attendance_channel = discord.utils.get(team_guild.channels, name="📤-📥-attendance")
+    if tata is None or attendance_channel is None:
+        return
     home_teams, away_teams, game_days, game_times = helper.pull_schedule(team_guild.name)
     bye_week = False
 
@@ -37,7 +40,7 @@ async def adhocAttendance(ctx):
             gametime_embed.add_field(name="Time:", value=game_times[i], inline=False)
             gametime_embed.add_field(name="Home Team:", value=home_teams[i], inline=False)
             gametime_embed.add_field(name="Away Team:", value=away_teams[i], inline=False)
-            rollcall_view = views.RollCallView(datetime.now()) 
+            rollcall_view = RollCallView(datetime.now())
             await attendance_channel.send(embed=gametime_embed)
             await attendance_channel.send(f"{tata.mention} Alright boys, who is in?", view=rollcall_view)
             break
@@ -50,25 +53,29 @@ async def adhocAttendance(ctx):
 
 @admin.command(brief="Check the current season id")
 @commands.check(helper.is_admin)
-async def checkDivId(ctx):
-    bot_channel = await helper.get_bot_channel(ctx)
-    await bot_channel.send(f"Current Season id: {settings.SERVER_CONFIG[ctx.guild.name]['division_id']}")
-
-@admin.command(brief="Check the current season id")
-@commands.check(helper.is_admin)
 async def checkSeasonId(ctx):
+    assert ctx.guild is not None
     bot_channel = await helper.get_bot_channel(ctx)
-    await bot_channel.send(f"Current Season id: {settings.SERVER_CONFIG[ctx.guild.name]['season_id']}")
+    guild_config = get_guild_config(ctx.guild)
+    await bot_channel.send(f"Current Season id: {guild_config['season_id']}")
 
-@admin.command(brief="Check the current team id")
+@admin.command(brief="Check the current channel team ids")
 @commands.check(helper.is_admin)
 async def checkTeamId(ctx):
+    assert ctx.guild is not None
     bot_channel = await helper.get_bot_channel(ctx)
-    await bot_channel.send(f"Current Team id: {settings.SERVER_CONFIG[ctx.guild.name]['team_id']}")
+    channel_config = get_channel_config(ctx.guild, ctx.channel.name)
+    if channel_config is None:
+        await bot_channel.send("Channel configuration not found.")
+        return
+    await bot_channel.send(
+        f"Current gs_team_id: {channel_config.get('gs_team_id', '')}\n"
+        f"Current team_calendar_id: {channel_config.get('team_calendar_id', '')}"
+    )
 
 @admin.command(brief="delete messages")
 @commands.check(helper.is_admin)
-async def clear(ctx, channel: str = None, amount=None, month=None, day= None, year=None):
+async def clear(ctx, channel: str | None = None, amount=None, month=None, day= None, year=None):
     '''
         Command: clear
         desc:
@@ -104,7 +111,8 @@ async def clear(ctx, channel: str = None, amount=None, month=None, day= None, ye
         date  =  datetime(int(year), int(month), int(day))
 
     # get the channel to delete messages from
-    if not (channel == "-" or channel == None):
+    if channel is not None and channel != "-":
+        # channel is a real channel name string
         channel_choice = discord.utils.get(ctx.guild.channels, name=channel)
     else:
         channel_choice = ctx.channel
@@ -115,71 +123,65 @@ async def clear(ctx, channel: str = None, amount=None, month=None, day= None, ye
     # let admin know the result
     await bot_channel.send(f"{len(message_list)} were deleted.")
 
-@admin.command(brief="Change Team ID")
-@commands.check(helper.is_admin)
-async def newDiv(ctx, id):
-    '''
-        Command: newDiv
-        desc:
-            Update the Division id that pointstreak has used.
-            This id can be obtained from the url of the
-            schedule for the current season and team
-        parameters:
-            id - team id from pointsteak url
-            ctx - standard context object for a command, 
-                see https://discordpy.readthedocs.io/en/stable/ext/commands/commands.html
-    '''
-    # getting the bot channel
-    bot_channel = await helper.get_bot_channel(ctx)
-
-    old_team_id = settings.SERVER_CONFIG[ctx.guild.name]['division_id']
-    settings.SERVER_CONFIG[ctx.guild.name]['division_id'] = id
-    
-    await bot_channel.send(f"Team Id Updated. Previous id: {old_team_id}; New team id: {id}")
-
 @admin.command(brief="Change Season ID")
 @commands.check(helper.is_admin)
 async def newSeason(ctx, id):
     '''
         Command: newSeason
         desc:
-            Update the season id that pointstreak has used.
-            This id can be obtained from the url of the
-            schedule for the current season and team
+            Update the season id used by the GameSheet URLs.
+            This id is part of the new team-stats/standings/roster URLs.
         parameters:
-            id - season id from pointsteak url
+            id - season id from GameSheet URL
             ctx - standard context object for a command, 
                 see https://discordpy.readthedocs.io/en/stable/ext/commands/commands.html
     '''
     # getting the bot channel  
+    assert ctx.guild is not None
     bot_channel = await helper.get_bot_channel(ctx)
-
-    old_season_id = settings.SERVER_CONFIG[ctx.guild.name]['season_id']   
-    settings.SERVER_CONFIG[ctx.guild.name]['season_id'] = id
-    
+    guild_config = get_guild_config(ctx.guild)
+    old_season_id = guild_config['season_id']
+    guild_config['season_id'] = id
     await bot_channel.send(f"Season ID updated from {old_season_id} to {id}")
 
-@admin.command(brief="Change Team ID")
+@admin.command(brief="Change the team id for this channel")
 @commands.check(helper.is_admin)
 async def newTeam(ctx, id):
     '''
         Command: newTeam
         desc:
-            Update the team id that pointstreak has used.
-            This id can be obtained from the url of the
-            schedule for the current season and team
+            Update the team id used by the new GameSheet URLs.
+            This id is part of team-stats/standings/roster URL paths.
         parameters:
-            id - team id from pointsteak url
+            id - team id from the GameSheet URL
             ctx - standard context object for a command, 
                 see https://discordpy.readthedocs.io/en/stable/ext/commands/commands.html
     '''
     # getting the bot channel
+    assert ctx.guild is not None
     bot_channel = await helper.get_bot_channel(ctx)
 
-    old_team_id = settings.SERVER_CONFIG[ctx.guild.name]['team_id']
-    settings.SERVER_CONFIG[ctx.guild.name]['team_id'] = id
-    
-    await bot_channel.send(f"Team ID updated from {old_team_id} to {id}")
+    channel_config = get_channel_config(ctx.guild, ctx.channel.name)
+    if channel_config is None:
+        await bot_channel.send("Channel configuration not found.")
+        return
+    old_gs_team_id = channel_config.get('gs_team_id', '')
+    channel_config['gs_team_id'] = id
+    await bot_channel.send(f"Team ID updated from {old_gs_team_id} to {id}")
+
+
+@admin.command(brief="Change the team calendar ID for this channel")
+@commands.check(helper.is_admin)
+async def newTeamCalendarId(ctx, id):
+    assert ctx.guild is not None
+    bot_channel = await helper.get_bot_channel(ctx)
+    channel_config = get_channel_config(ctx.guild, ctx.channel.name)
+    if channel_config is None:
+        await bot_channel.send("Channel configuration not found.")
+        return
+    old_calendar_id = channel_config.get('team_calendar_id', '')
+    channel_config['team_calendar_id'] = id
+    await bot_channel.send(f"Team calendar ID updated from {old_calendar_id} to {id}")
 
 @admin.command(brief="Send team schedule")
 @commands.check(helper.is_admin)

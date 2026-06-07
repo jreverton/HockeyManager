@@ -98,7 +98,8 @@ async def create_roll_calls(guild: discord.Guild):
         
         # Save the next game to the channel config
         if channel_config is not None:
-            channel_config['next_game'] = next_game_data
+            # store only the datetime in the config (TypedDict expects datetime | None)
+            channel_config['next_game'] = next_game_data.datetime
 
         # Build the embeds to send game information and roll-call view
         gametime_embed = discord.Embed(
@@ -123,10 +124,10 @@ async def create_roll_calls(guild: discord.Guild):
             set_reminder_time, channel, "The game is starting in 2 hours! Please make sure you're ready to play!"))
 
 
-async def get_role_mention_string(guild: discord.Guild, channel: discord.Channel, channel_config: ChannelConfig) -> str:
+async def get_role_mention_string(guild: discord.Guild, channel: discord.TextChannel, channel_config: ChannelConfig | None) -> str:
     """Returns the roles from config to mention on the roll call notifications, or @everyone if none are found."""
     mention_str = ""
-    role_names: list[str] = channel_config.get("role_names", []) if channel_config else []
+    role_names: list[str] = channel_config.get("role_names", []) if channel_config is not None else []
     if (role_names):
         for role_name in role_names:
             role = discord.utils.get(guild.roles, name=role_name)
@@ -147,7 +148,7 @@ async def get_role_mention_string(guild: discord.Guild, channel: discord.Channel
     
 
 
-async def schedule_reminder(target_time: datetime, channel: discord.Channel, message: str):
+async def schedule_reminder(target_time: datetime, channel: discord.TextChannel, message: str):
     """Schedules a one-off reminder message to be sent to a specific channel at a target time."""
     now = datetime.now(timezone.utc)
     delay = (target_time - now).total_seconds()
@@ -166,13 +167,13 @@ class RollCallView(View):
         three buttons for accepting roll call
     '''
     # rollcall view properties
-    player_tracking = {}
-    message_id = ""
+    player_tracking: dict[str, str] = {}
+    message_id: int | None = None
 
     def __init__(self, send_time, timeout=216000):
         super().__init__(timeout=timeout)
         self.player_tracking = {}
-        self.message_id = ""
+        self.message_id = None
 
     async def on_timeout(self):
         self.player_tracking = {}
@@ -182,15 +183,17 @@ class RollCallView(View):
         await interaction.response.defer()
         guild = interaction.guild
         channel = interaction.channel
+        assert guild is not None and channel is not None
         user_name = interaction.user.display_name
 
         if user_name in self.player_tracking:
+            assert self.message_id is not None
             msg = await channel.fetch_message(self.message_id)
             helper.clear_name(guild, channel.name, user_name)
             self.player_tracking[user_name] = "In"
             await send_line_up(guild, user_name, AttendanceType.SKATERS, channel, msg)
         else:
-            if self.message_id == "":
+            if self.message_id is None:
                 self.message_id = await send_line_up(guild, user_name, AttendanceType.SKATERS, channel, None)
             else:
                 msg = await channel.fetch_message(self.message_id)
@@ -202,18 +205,23 @@ class RollCallView(View):
         await interaction.response.defer()
         guild = interaction.guild
         channel = interaction.channel
+        assert guild is not None and channel is not None
         channel_config = get_channel_config(guild, channel.name)
+        assert channel_config is not None
 
-        saved_goalie = channel_config['attendance'][AttendanceType.GOALIE]
-        if saved_goalie == "" or saved_goalie == interaction.user.display_name:
-            user_name = interaction.user.display_name
+        saved_goalie = channel_config['attendance'][AttendanceType.GOALIE.value]
+        user_name = interaction.user.display_name
+        user_mention = interaction.user.mention
+
+        # Allow the same user to re-click the Goalie button even if they're already set as goalie.
+        if saved_goalie == "" or saved_goalie == user_name or saved_goalie == user_mention:
             if user_name in self.player_tracking:
                 msg = await channel.fetch_message(self.message_id)
                 helper.clear_name(guild, channel.name, user_name)
                 self.player_tracking[user_name] = "In - G"
                 await send_line_up(guild, user_name, AttendanceType.GOALIE, channel, msg)
             else:
-                if self.message_id == "":
+                if self.message_id is None:
                     self.message_id = await send_line_up(guild, user_name, AttendanceType.GOALIE, channel, None)
                 else:
                     msg = await interaction.channel.fetch_message(self.message_id)
@@ -228,15 +236,17 @@ class RollCallView(View):
         await interaction.response.defer()
         guild = interaction.guild
         channel = interaction.channel
+        assert guild is not None and channel is not None
         user_name = interaction.user.display_name
 
         if user_name in self.player_tracking:
+            assert self.message_id is not None
             msg = await channel.fetch_message(self.message_id)
             helper.clear_name(guild, channel.name, user_name)
             self.player_tracking[user_name] = "In - Sub"
             await send_line_up(guild, user_name, AttendanceType.SUBS, channel, msg)
         else:
-            if self.message_id == "":
+            if self.message_id is None:
                 self.message_id = await send_line_up(guild, user_name, AttendanceType.SUBS, channel, None)
             else:
                 msg = await channel.fetch_message(self.message_id)
@@ -248,9 +258,11 @@ class RollCallView(View):
         await interaction.response.defer()
         guild = interaction.guild
         channel = interaction.channel
+        assert guild is not None and channel is not None
         user_name = interaction.user.display_name
 
         if user_name in self.player_tracking:
+            assert self.message_id is not None
             msg = await channel.fetch_message(self.message_id)
 
             helper.clear_name(guild, channel.name, user_name)
@@ -258,7 +270,7 @@ class RollCallView(View):
             self.player_tracking[user_name] = "Out"
             await send_line_up(guild, user_name, AttendanceType.OUT, channel, msg)
         else:
-            if self.message_id == "":
+            if self.message_id is None:
                 self.message_id = await send_line_up(guild, user_name, AttendanceType.OUT, channel, None)
             else:
                 msg = await channel.fetch_message(self.message_id)
@@ -266,7 +278,7 @@ class RollCallView(View):
             self.player_tracking[user_name] = "Out"
 
 
-async def send_line_up(guild: discord.Guild, user_name: str, position: AttendanceType, channel: discord.Channel, msg: str):
+async def send_line_up(guild: discord.Guild, user_name: str, position: AttendanceType, channel: discord.TextChannel, msg: discord.Message | None) -> int | None:
     """
         This function sends or updates the lineup embed in the attendance channel
         Parameters:
@@ -281,6 +293,7 @@ async def send_line_up(guild: discord.Guild, user_name: str, position: Attendanc
     print(f"send_line_up({guild.name}, {user_name}, {position.value}, {channel}, {msg})")
 
     channel_config = get_channel_config(guild, channel.name)
+    assert channel_config is not None
     player = helper.get_name_mention(guild, user_name)
 
     if position.value != AttendanceType.GOALIE.value:
@@ -288,7 +301,7 @@ async def send_line_up(guild: discord.Guild, user_name: str, position: Attendanc
     else:
         channel_config['attendance'][AttendanceType.GOALIE.value] = player
     lineup = lineup_embed(guild, channel.name)
-    if msg:
+    if msg is not None:
         await msg.edit(embed=lineup)
     else:
         msg = await channel.send(embed=lineup)
@@ -306,6 +319,7 @@ def lineup_embed(guild: discord.Guild, channel_name):
     out_lineup = ""
 
     channel_config = get_channel_config(guild, channel_name)
+    assert channel_config is not None
     attendance_array = channel_config['attendance']
 
     # Populate the lineup strings

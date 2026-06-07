@@ -1,10 +1,9 @@
 import discord
-import re
 import requests
-import time
 import settings
 from guild.models import AttendanceType
-from guild import GuildConfig, ChannelConfig, get_guild_config, get_channel_config
+from guild import ChannelConfig, get_channel_config
+from schedule.parser import retrieve_team_data
 
 from bs4 import BeautifulSoup as bs
 from selenium import webdriver
@@ -13,7 +12,7 @@ from selenium import webdriver
 def clear_name(guild: discord.Guild, channel_name: str, user_name: str):
     channel_config: ChannelConfig | None = get_channel_config(guild, channel_name)
     if channel_config is None:
-        print(f"clear_name(): Channel config not found for channel: {channel_name}")
+        # Channel config not found, so name is cleared by default
         return
     
     attendance_data = channel_config['attendance']
@@ -31,8 +30,8 @@ def clear_name(guild: discord.Guild, channel_name: str, user_name: str):
 
     if user_name in attendance_data[AttendanceType.OUT.value]:
         attendance_data[AttendanceType.OUT.value].remove(user_name)
-    if user_name in attendance_data[AttendanceType.OUT.value]:
-        attendance_data[AttendanceType.OUT.value].remove(user_name)
+    if user_mention in attendance_data[AttendanceType.OUT.value]:
+        attendance_data[AttendanceType.OUT.value].remove(user_mention)
 
     if attendance_data[AttendanceType.GOALIE.value] == user_name or attendance_data[AttendanceType.GOALIE.value] == user_mention:
         attendance_data[AttendanceType.GOALIE.value] = ''
@@ -45,7 +44,7 @@ def get_name_mention(guild: discord.Guild, user_name: str) -> str:
     return player
 
 
-def create_browser():
+def create_browser() -> webdriver.Firefox:
     options =  webdriver.FirefoxOptions()
     options.add_argument("--headless")
     browser = webdriver.Firefox(options=options)
@@ -90,53 +89,9 @@ def format_team_info(tags):
     return ranks, stats
 
 
-def get_delayed_info(browser, guild: discord.Guild, channel_name: str):
-    guild_config: GuildConfig = get_guild_config(guild)
-    channel_config: ChannelConfig | None = get_channel_config(guild, channel_name)
-    if channel_config is None:
-
-        # TODO JRE: Should this talk to the channel instead?
-        
-        print(f"get_delayed_info(): Channel config not found for channel: {channel_name}")
-        return
-
-    browser.get(settings.SECONDARY_URL + channel_config['team_id'] + "&seasonid=" + guild_config['season_id'])
-    time.sleep(2)
-    team_info = browser.page_source
-    browser.quit()
-    team_info_soup = bs(team_info, "html.parser")
-    return team_info_soup
-
-
 async def get_bot_channel(ctx) -> discord.TextChannel:
     bot_channel = discord.utils.get(ctx.guild.text_channels, name="manager-bot")
     return bot_channel
-
-
-# TODO JRE: This needs to take a channel name parameter
-def get_team_stats(guild: discord.Guild, channel_name: str) -> discord.Embed:
-    browser = create_browser()
-    team_stats = get_delayed_info(browser, guild, channel_name)
-    ranks, stats =  format_team_info(team_stats)
-
-    team_stat_embed = discord.Embed(
-        title="Team Stats",
-        color=discord.Color.dark_grey()
-    )
-
-    for key in ranks.keys():
-        team_stat_embed.add_field(
-            name=key,
-            value=f"> Place: {ranks[key][0]}\n> Team: {ranks[key][1]}"
-        )
-    
-    for key in stats.keys():
-        team_stat_embed.add_field(
-            name=key,
-            value=f"> Team: {stats[key][0]}\n> Division Avg: {stats[key][1]}"
-        )
-
-    return team_stat_embed
 
 
 def is_admin(ctx):
@@ -167,75 +122,24 @@ def is_captain(ctx):
     return True
 
 
-def pull_player_stats(guild_name, player):
-    roster_home_page = bs(requests.get(settings.SECONDARY_URL + settings.SERVER_CONFIG[guild_name]['team_id'] + "&seasonid=" + settings.SERVER_CONFIG[guild_name]['season_id']).text, "html.parser")
-    player_stats = roster_home_page.find_all("a", string=re.compile(player))
-    if len(player_stats) == 3:
-        player_stats.pop(1)
-    if player_stats != []:
-        player_row = player_stats[0].parent.parent
-        stat_embed = discord.Embed(
-                color=discord.Color.blue(),
-                title=f'# {player_row.contents[1].get_text(strip=True)}    {player}'
-            )
-        secondary = False
-        for tag in player_stats:
-            player_row = tag.parent.parent
-            if not secondary:
-                for i in range(len(player_row.contents)):
-                    if i < 4:
-                        continue
-                    else:
-                        if player_row.contents[i].get_text(strip=True) != '':
-                            stat_embed.add_field(
-                                name=settings.PLAYER_STAT_DICT[i],
-                                value=player_row.contents[i].get_text(strip=True)
-                            )
-                secondary = True
-            else:
-                for i in range(len(player_row.contents)):
-                    if i < 3:
-                        stat_embed.add_field(
-                            name=" ",
-                            value=" "
-                        )
-                    elif 3 <= i < 4:
-                        continue
-                    else:
-                        if player_row.contents[i].get_text(strip=True) != '':
-                            stat_embed.add_field(
-                                name=settings.GOALIE_STAT_DICT[i],
-                                value=player_row.contents[i].get_text(strip=True)
-                        )
-        return stat_embed
-    else:
-        return " No name found"
-
-
 def pull_schedule(guild_name):
-    team_homepage = bs(requests.get(settings.PRIMARY_URL + settings.SERVER_CONFIG[guild_name]['team_id']+ "&seasonid=" + settings.SERVER_CONFIG[guild_name]['season_id']).text, "html.parser")
-    schedule_table = team_homepage.find(class_="table-responsive")
-    schedule_games = schedule_table.findAll("tr")
+    guild_config = settings.SERVER_CONFIG.get(guild_name, {})
+    channels = guild_config.get("channels", [])
 
-    home_teams = []
-    away_teams = []
-    game_day = []
-    game_time = []
+    team_calendar_id = ""
+    for channel in channels:
+        if channel.get("team_calendar_id") and channel.get("team_calendar_id") != "0":
+            team_calendar_id = channel["team_calendar_id"]
+            break
 
-    for row in schedule_games:
-        data = row.findAll("td")
-        index =0
-        for cell in data:
-            team = cell.find("a")
-            
-            if index == 0:
-                home_teams.append(team.text)
-            elif index == 1:
-                away_teams.append(team.text)
-            elif index == 2:
-                game_day.append(cell.text)
-            elif index == 3:
-                game_time.append(cell.text)
-            index = index + 1
+    if not team_calendar_id:
+        return [], [], [], []
+
+    _, _, schedule_data = retrieve_team_data(team_calendar_id)
+
+    home_teams = [game.home_team for game in schedule_data]
+    away_teams = [game.away_team for game in schedule_data]
+    game_day = [game.datetime.strftime("%a, %b %d") for game in schedule_data]
+    game_time = [game.datetime.strftime("%I:%M %p").lstrip("0") for game in schedule_data]
 
     return home_teams, away_teams, game_day, game_time

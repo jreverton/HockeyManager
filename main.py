@@ -67,8 +67,8 @@ def run(): # James version
 
         # TODO JRE: Remove this temporary config load
         # Load any server configurations from file
-        for config in settings.DATA_DIR.glob("*_config_new.json"):
-        # for config in settings.DATA_DIR.glob("*_config.json"):
+        # for config in settings.DATA_DIR.glob("*_config_new.json"):
+        for config in settings.DATA_DIR.glob("*_config.json"):
             print(f"Loading server config file: {config.name}")
             load_server_config(config, settings.SERVER_CONFIG, edm_manager)
 
@@ -162,9 +162,8 @@ def orig_run(): # Zach version
         print('on_guild_join()')
         pprint(guild)
 
-        # create the empty data dictionary and pass it to builder function
-        settings.SERVER_CONFIG[guild.name] = {}
-        helper.create_new_guild_config(settings.SERVER_CONFIG[guild.name], guild.name, guild.id)
+        # create the guild config and populate it with default values
+        create_new_guild_config(settings.SERVER_CONFIG, guild)
 
         # check to see if the bot and feedback channels exist
         if discord.utils.get(guild.channels, name="manager-bot") != None:
@@ -218,6 +217,9 @@ def orig_run(): # Zach version
             if command_file.name != "__init__.py":
                 print(f"loading file: {command_file.name}")
                 await edm_manager.load_extension(f"cmds.{command_file.name[:-3]}")
+
+    if settings.DISCORD_API_SECRET is None:
+        raise RuntimeError("DISCORD_TOKEN environment variable is not set")
 
     edm_manager.run(settings.DISCORD_API_SECRET)
 

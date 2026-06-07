@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, asdict
 from datetime import datetime as _dt
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Union
 import json
 
 
@@ -45,12 +45,16 @@ class Schedule:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Schedule":
         """Deserialize from dict produced by to_dict. Accepts ISO datetime string or datetime."""
-        dt = data.get("datetime")
+        dt: Optional[Union[str, _dt]] = data.get("datetime")
         if isinstance(dt, str):
             # datetime.fromisoformat supports offsets; if input may contain 'Z', convert it first
             if dt.endswith("Z"):
                 dt = dt[:-1] + "+00:00"
             dt = _dt.fromisoformat(dt)
+
+        if not isinstance(dt, _dt):
+            raise ValueError("datetime must be a valid datetime or ISO datetime string")
+
         return cls(
             home_team=data["home_team"],
             away_team=data["away_team"],

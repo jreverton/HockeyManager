@@ -21,10 +21,6 @@ CMDS_DIR = BASE_DIR / "cmds"
 TASKS_DIR = BASE_DIR / "tasks"
 DATA_DIR = BASE_DIR / "data"
 
-# PRIMARY URL
-PRIMARY_URL = "http://stats.pointstreak.com/players/players-team-schedule.html?teamid="
-SECONDARY_URL = 'http://stats.pointstreak.com/players/players-team-roster.html?teamid='
-
 # SERVER CONFIG
 SERVER_CONFIG: ServerConfigDict = {}
 
@@ -40,7 +36,7 @@ PLAYER_STAT_DICT = {
     15: "Power Play Goals",
     17: "Short Handed Goals",
     19: "Game Winning Goals",
-    21: "Power Play Goals Against"
+    21: "Points-Per-Game Average"
 }
 
 GOALIE_STAT_DICT = {
@@ -49,7 +45,7 @@ GOALIE_STAT_DICT = {
     5: "Games Played (G)",
     7: "Minutes",
     9: "Wins",
-    11: "Loses",
+    11: "Losses",
     12: "Ties",
     14: "Shoot Outs",
     16: "Goals Against",
@@ -59,19 +55,17 @@ GOALIE_STAT_DICT = {
 }
 
 # TABLE HEADER
-HEADER = [
-    "Team Name", 
-    "GP", 
-    "W", 
-    "L", 
-    "OTW", 
-    "SOW", 
-    "OTL", 
-    "SOL", 
-    "PTS", 
-    "GF", 
-    "GA", 
-    "PIM", 
-    "Last 5", 
-    "Streak"
+STANDINGS_HEADER = [
+    "Team Name",
+    "GP",
+    "W",
+    "L",
+    "OTL",
+    "SOL",
+    "PTS",
+    "GF",
+    "GA",
+    "PIM",
+    "Last 5",
+    "Streak",
 ]

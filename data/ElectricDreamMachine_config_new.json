@@ -3,45 +3,97 @@
   "bot_channel": 0,
   "file_prefix": "ElectricDreamMachine",
   "roll_call_channel_suffix": "developer",
-  "real_roll_call_channel_suffix": "-roll-call",
-  "season_id": "21671",
+  "season_id": 21671,
   "channels": [
     {
       "name": "developer",
-      "attendance": { "Skaters": [], "Subs": [], "Goalie": "", "Out": [] },
-      "team_id": "814869",
-      "division_id": "121544",
-      "role_names": ["C6_players", "C6_subs"]
-    }
-  ],
-  "real_channels": [
+      "attendance": {
+        "Skaters": [],
+        "Subs": [],
+        "Goalie": "",
+        "Out": []
+      },
+      "gs_team_id": 814869,
+      "gs_division_id": 121544,
+      "role_names": [
+        "C6_players",
+        "C6_subs"
+      ],
+      "channel_id": 0,
+      "next_game": null,
+      "team_calendar_id": "814869"
+    },
     {
       "name": "c5-roll-call",
-      "attendance": { "Skaters": [], "Subs": [], "Goalie": "", "Out": [] },
-      "team_id": "814862",
-      "division_id": "121543",
-      "role_names": ["C5_players", "C5_subs"]
+      "attendance": {
+        "Skaters": [],
+        "Subs": [],
+        "Goalie": "",
+        "Out": []
+      },
+      "gs_team_id": 814862,
+      "gs_division_id": 121543,
+      "role_names": [
+        "C5_players",
+        "C5_subs"
+      ],
+      "channel_id": 0,
+      "next_game": null,
+      "team_calendar_id": "814862"
     },
     {
       "name": "c7-roll-call",
-      "attendance": { "Skaters": [], "Subs": [], "Goalie": "", "Out": [] },
-      "team_id": "814879",
-      "division_id": "121545",
-      "role_names": ["C7_players", "C7_subs"]
+      "attendance": {
+        "Skaters": [],
+        "Subs": [],
+        "Goalie": "",
+        "Out": []
+      },
+      "gs_team_id": 814879,
+      "gs_division_id": 121545,
+      "role_names": [
+        "C7_players",
+        "C7_subs"
+      ],
+      "channel_id": 0,
+      "next_game": null,
+      "team_calendar_id": "814879"
     },
     {
       "name": "d1-roll-call",
-      "attendance": { "Skaters": [], "Subs": [], "Goalie": "", "Out": [] },
-      "team_id": "814887",
-      "division_id": "121547",
-      "role_names": ["D1_players", "D1_subs"]
+      "attendance": {
+        "Skaters": [],
+        "Subs": [],
+        "Goalie": "",
+        "Out": []
+      },
+      "gs_team_id": 814887,
+      "gs_division_id": 121547,
+      "role_names": [
+        "D1_players",
+        "D1_subs"
+      ],
+      "channel_id": 0,
+      "next_game": null,
+      "team_calendar_id": "814887"
     },
     {
       "name": "d2-roll-call",
-      "attendance": { "Skaters": [], "Subs": [], "Goalie": "", "Out": [] },
-      "team_id": "814893",
-      "division_id": "121548",
-      "role_names": ["D2_players", "D2_subs"]
+      "attendance": {
+        "Skaters": [],
+        "Subs": [],
+        "Goalie": "",
+        "Out": []
+      },
+      "gs_team_id": 814893,
+      "gs_division_id": 121548,
+      "role_names": [
+        "D2_players",
+        "D2_subs"
+      ],
+      "channel_id": 0,
+      "next_game": null,
+      "team_calendar_id": "814893"
     }
   ]
 }

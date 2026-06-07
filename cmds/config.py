@@ -29,6 +29,7 @@ async def changeFilePrefix(ctx: commands.Context, prefix: str):
                 see https://discordpy.readthedocs.io/en/stable/ext/commands/commands.html
             prefix - string file name
     '''
+    assert ctx.guild is not None
     # collects the old prefix
     old_prefix = settings.SERVER_CONFIG[ctx.guild.name]['file_prefix']
 
@@ -61,6 +62,7 @@ async def list(ctx):
             ctx - standard context object for a command, 
                 see https://discordpy.readthedocs.io/en/stable/ext/commands/commands.html
     '''
+    assert ctx.guild is not None
     bot_channel = await helper.get_bot_channel(ctx)
     
     # check if server data is laoded
@@ -95,6 +97,7 @@ async def load(ctx):
             ctx - standard context object for a command, 
                 see https://discordpy.readthedocs.io/en/stable/ext/commands/commands.html    
     '''
+    assert ctx.guild is not None
     # collect the file name
     file_name = settings.DATA_DIR / (ctx.guild.name.replace(" ", "") + '_config.json')
 
@@ -121,7 +124,12 @@ async def save(ctx):
             ctx - standard context object for a command, 
                 see https://discordpy.readthedocs.io/en/stable/ext/commands/commands.html 
     '''
-    save_config(ctx)
+    try:
+        save_config(ctx)
+    except Exception as e:
+        bot_channel = await helper.get_bot_channel(ctx)
+        await bot_channel.send(f"Error saving configuration: {e}")
+        return
 
     # let the admin know
     bot_channel = await helper.get_bot_channel(ctx)
@@ -148,8 +156,15 @@ def load_server_config(file_path, server_config, bot=None):
     from pathlib import Path
     p = Path(file_path)
 
-    with open(p, 'r') as f:
-        cfg = json.load(f)
+    try:
+        with open(p, 'r', encoding='utf-8') as f:
+            cfg = json.load(f)
+    except json.JSONDecodeError as e:
+        print(f"Failed to load config file {p}: {e}")
+        return None
+    except FileNotFoundError:
+        print(f"Config file not found: {p}")
+        return None
 
     # Prefer to use the guild id stored in the config to locate the guild
     guild_key = None
@@ -182,12 +197,32 @@ def load_server_config(file_path, server_config, bot=None):
 save_config: Helper function to save a server config to a file
 """
 def save_config(ctx):
-    # create the file name
-    file_name = settings.DATA_DIR / (settings.SERVER_CONFIG[ctx.guild.name]['file_prefix'] + '_config.json')
+    # create the file name and ensure data directory exists
+    from pathlib import Path
+    from datetime import datetime, date
 
-    # save to the file
-    with open(file_name, 'w') as cur_config:
-        json.dump(settings.SERVER_CONFIG[ctx.guild.name], cur_config)
+    assert ctx.guild is not None
+    data_dir = settings.DATA_DIR if isinstance(settings.DATA_DIR, Path) else Path(settings.DATA_DIR)
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    file_name = data_dir / (settings.SERVER_CONFIG[ctx.guild.name]['file_prefix'] + '_config.json')
+    temp_file = file_name.with_suffix(file_name.suffix + '.tmp')
+
+    # custom JSON serializer: convert datetimes to ISO, fallback to string
+    def _json_default(o):
+        try:
+            # datetime, date, and similar objects
+            if hasattr(o, 'isoformat'):
+                return o.isoformat()
+        except Exception:
+            pass
+        return str(o)
+
+    # save to a temporary file first, then atomically replace the config file
+    with open(temp_file, 'w', encoding='utf-8') as cur_config:
+        json.dump(settings.SERVER_CONFIG[ctx.guild.name], cur_config, indent=2, ensure_ascii=False, default=_json_default)
+
+    os.replace(temp_file, file_name)
 
 
 async def setup(bot):
