@@ -11,6 +11,28 @@ from datetime import datetime, time, timedelta, timezone
 from discord.ext import tasks
 from discord.ui import View
 
+
+def build_gametime_embed(game_datetime: datetime, home_team: str, away_team: str, url: str | None = None) -> discord.Embed:
+    """Build a standard gametime embed for roll-call notifications."""
+    gametime_embed = discord.Embed(
+        color=discord.Color.brand_green(),
+        title="Next Game",
+        url=url
+    )
+    gametime_embed.add_field(name="Game Time:", value=game_datetime.strftime("%A %B %d at %I:%M %p"), inline=False)
+    gametime_embed.add_field(name="Home Team:", value=home_team, inline=False)
+    gametime_embed.add_field(name="Away Team:", value=away_team, inline=False)
+    return gametime_embed
+
+
+async def post_gametime_embed(channel: discord.TextChannel, mention_str: str | None, game_datetime: datetime, home_team: str, away_team: str, url: str | None = None) -> discord.Message:
+    """Send a gametime embed to the provided channel with an optional mention."""
+    gametime_embed = build_gametime_embed(game_datetime, home_team, away_team, url)
+    if mention_str:
+        return await channel.send(mention_str, embed=gametime_embed)
+    return await channel.send(embed=gametime_embed)
+
+
 utc = timezone.utc
 send_time = time(hour=18, minute=0, tzinfo=utc)
 
@@ -18,6 +40,11 @@ send_time = time(hour=18, minute=0, tzinfo=utc)
 async def setup(bot):
     print("Entering rollcall task setup command")
     rollCall.start(bot)
+    # On startup, restore any already-configured upcoming roll-calls
+    try:
+        await restore_startup_rollcalls(bot)
+    except Exception as e:
+        print(f"Error restoring startup rollcalls: {e}")
 
 
 """
@@ -29,9 +56,6 @@ performs actions when the current weekday is Tuesday (datetime.today().weekday()
 @tasks.loop(time=send_time)
 async def rollCall(bot):
     current_weekday = datetime.today().weekday()
-    # current_year = str(datetime.today().year)
-    # current_date = datetime.today().date()
-    # six_days_later = datetime.today().date() + timedelta(days=6)
 
     # change loop to be day == 1 for Tuesday
     if current_weekday == 1:
@@ -39,37 +63,6 @@ async def rollCall(bot):
         # Iterate over each of the guilds in the bot
         for guild in bot.guilds:
             await create_roll_calls(guild)
-
-        # # Swap the below code for testing in the devserver
-        # team_guild = discord.utils.get(bot.guilds, name="exile server")
-        # # team_guild = discord.utils.get(bot.guilds, name='Hakuna Ma Tatas')
-
-        # tata =  discord.utils.get(team_guild.roles, name="Tata")
-        # attendance_channel = discord.utils.get(team_guild.channels, name="📤-📥-attendance")
-        # home_teams, away_teams, game_days, game_times = helper.pull_schedule(team_guild.name)
-        # bye_week = False
-
-        # for i in range(len(game_days)):
-        #     game_date = datetime.strptime(game_days[i] + " " + current_year, "%a, %b %d %Y").date()
-        #     if current_date <= game_date< six_days_later:
-        #         gametime_embed = discord.Embed(
-        #             color=discord.Color.blue(),
-        #             title="Next Game"
-        #         )
-        #         gametime_embed.add_field(name="Date:", value=game_days[i], inline=False)
-        #         gametime_embed.add_field(name="Time:", value=game_times[i], inline=False)
-        #         gametime_embed.add_field(name="Home Team:", value=home_teams[i], inline=False)
-        #         gametime_embed.add_field(name="Away Team:", value=away_teams[i], inline=False)
-        #         rollcall_view = RollCallView(send_time) 
-        #         await attendance_channel.send(embed=gametime_embed)
-        #         await attendance_channel.send(f"{tata.mention} Alright boys, who is in?", view=rollcall_view)
-        #         break
-        #     elif i == len(game_days) - 1:
-        #         bye_week = True
-        
-        # if bye_week:
-        #     await attendance_channel.send(f"{tata.mention} No game this week boys! Have a good weekend!")
-        #     bye_week = False
 
 
 async def create_roll_calls(guild: discord.Guild):
@@ -101,19 +94,16 @@ async def create_roll_calls(guild: discord.Guild):
             # store only the datetime in the config (TypedDict expects datetime | None)
             channel_config['next_game'] = next_game_data.datetime
 
-        # Build the embeds to send game information and roll-call view
-        gametime_embed = discord.Embed(
-            color=discord.Color.brand_green(),
-            title="Next Game", 
-            url=schedule_url
+        # Build and send the gametime embed and roll-call view
+        await post_gametime_embed(
+            channel,
+            mention_str,
+            next_game_data.datetime,
+            next_game_data.home_team,
+            next_game_data.away_team,
+            schedule_url,
         )
-        gametime_embed.add_field(name="Game Time:", value=next_game_data.datetime.strftime("%A %B %d at %I:%M %p"), inline=False)
-        gametime_embed.add_field(name="Home Team:", value=next_game_data.home_team, inline=False)
-        gametime_embed.add_field(name="Away Team:", value=next_game_data.away_team, inline=False)
-        rollcall_view = RollCallView(next_game_data.datetime) 
-
-        # Send the next game message
-        await channel.send(mention_str, embed=gametime_embed)
+        rollcall_view = RollCallView(next_game_data.datetime)
 
         # Send the roll call view
         await channel.send(view=rollcall_view)
@@ -122,6 +112,78 @@ async def create_roll_calls(guild: discord.Guild):
         set_reminder_time = next_game_data.datetime - timedelta(hours=2)
         asyncio.create_task(schedule_reminder(
             set_reminder_time, channel, "The game is starting in 2 hours! Please make sure you're ready to play!"))
+
+
+async def restore_startup_rollcalls(bot):
+    """When the bot starts, post roll-call embeds for channels that already
+    have a `next_game` set in the future and restore the attendance embed/view.
+    """
+    now = datetime.now(timezone.utc)
+    for guild in bot.guilds:
+        for channel in get_roll_call_channels(guild):
+            channel_config = get_channel_config(guild, channel.name)
+            if not channel_config:
+                continue
+
+            next_game_dt = channel_config.get('next_game')
+            if not next_game_dt:
+                continue
+
+            # Only restore for future games
+            if not isinstance(next_game_dt, datetime) or next_game_dt <= now:
+                continue
+
+            # Try to get fresh game details from the schedule parser
+            schedule_url, next_game_data = schedule_parser.get_next_game(guild, channel.name)
+
+            # Build gametime embed (prefer fresh data if available)
+            if next_game_data:
+                gametime = next_game_data.datetime
+                home = next_game_data.home_team
+                away = next_game_data.away_team
+                url = schedule_url
+            else:
+                gametime = next_game_dt
+                home = "TBD"
+                away = "TBD"
+                url = None
+
+            # Determine mention string
+            try:
+                mention_str = await get_role_mention_string(guild, channel, channel_config)
+            except Exception:
+                mention_str = "@everyone"
+
+            # Send gametime embed
+            try:
+                await post_gametime_embed(channel, mention_str, gametime, home, away, url)
+            except Exception as e:
+                print(f"Failed to send gametime embed for {guild.name}/{channel.name}: {e}")
+                continue
+
+            # Send current attendance lineup using existing config
+            try:
+                lineup = lineup_embed(guild, channel.name)
+                lineup_msg = await channel.send(embed=lineup)
+            except Exception as e:
+                print(f"Failed to send lineup embed for {guild.name}/{channel.name}: {e}")
+                continue
+
+            # Attach a RollCallView and set its message_id so callbacks edit the lineup
+            try:
+                rollcall_view = RollCallView(next_game_dt)
+                rollcall_view.message_id = lineup_msg.id
+                await channel.send(view=rollcall_view)
+            except Exception as e:
+                print(f"Failed to attach rollcall view for {guild.name}/{channel.name}: {e}")
+                # continue anyway
+
+            # Schedule the reminder task
+            try:
+                set_reminder_time = next_game_dt - timedelta(hours=2)
+                asyncio.create_task(schedule_reminder(set_reminder_time, channel, "The game is starting in 2 hours! Please make sure you're ready to play!"))
+            except Exception as e:
+                print(f"Failed to schedule reminder for {guild.name}/{channel.name}: {e}")
 
 
 async def get_role_mention_string(guild: discord.Guild, channel: discord.TextChannel, channel_config: ChannelConfig | None) -> str:

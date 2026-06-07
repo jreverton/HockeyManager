@@ -1,15 +1,28 @@
+* Rename from Hakuna2.0 to something else
+
+* Switch to using /slash commands instead of !bang commands
+* Switch to using GCP?
+
+* Save config every time 
+
 * Expand config to store multiple games per weekend. Each game needs...
  - A timestamp (currently "next_game")
  - A list of skaters/subs/goalie/out
+ - A message_id for updating rollcall embed
 
 * Upon load...
- - If a game exists with the correct timestamp, post the embed automatically.
  - If a game exists with a timestamp in the past, delete the game from channel config[]
 
 * Use sesh.fyi API?
 
-* Switch to using GCP?
-
 * Add GetPlayerStats back in using Gamesheets API
 
 * Remove reset of Hakuna config
+
+
+================ Currently working on ================
+
+* Upon load...
+ - If a game exists with the correct timestamp, post the embed automatically.
+ :: Don't post the game embed if no stored attendance (or is empty)
+ :: Should we store the message_id for the RollCallView?

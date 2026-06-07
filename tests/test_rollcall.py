@@ -1,10 +1,13 @@
 import asyncio
 import unittest
-from unittest.mock import AsyncMock, Mock
+from datetime import datetime, timedelta, timezone
+from typing import Any, cast
+from unittest.mock import AsyncMock, Mock, patch
 
+import discord
 import settings
 from guild.models import AttendanceType
-from tasks.rollCall import get_role_mention_string, send_line_up
+from tasks.rollCall import build_gametime_embed, get_role_mention_string, restore_startup_rollcalls, send_line_up
 
 
 class FakeRole:
@@ -63,7 +66,7 @@ class TestRollCallHelpers(unittest.TestCase):
         )
 
         # When no role names are configured, roll call should default to the everyone mention.
-        result = asyncio.run(get_role_mention_string(guild, guild.text_channels[0], None))
+        result = asyncio.run(get_role_mention_string(cast(discord.Guild, guild), guild.text_channels[0], None))
         self.assertEqual(result, "@everyone")
 
     def test_get_role_mention_string_mentions_existing_role(self):
@@ -78,7 +81,7 @@ class TestRollCallHelpers(unittest.TestCase):
         }
 
         # Verify that an existing configured role is converted into the role mention string.
-        result = asyncio.run(get_role_mention_string(guild, guild.text_channels[0], channel_config))
+        result = asyncio.run(get_role_mention_string(cast(discord.Guild, guild), guild.text_channels[0], cast(Any, channel_config)))
         self.assertEqual(result, " @Tata")
 
     def test_send_line_up_creates_message_and_updates_attendance(self):
@@ -113,7 +116,7 @@ class TestRollCallHelpers(unittest.TestCase):
         }
 
         channel = guild.text_channels[0]
-        message_id = asyncio.run(send_line_up(guild, "Alice", AttendanceType.SKATERS, channel, None))
+        message_id = asyncio.run(send_line_up(cast(discord.Guild, guild), "Alice", AttendanceType.SKATERS, channel, None))
 
         # A new roll call message should be sent and the returned ID should match the created message.
         self.assertEqual(message_id, 123)
@@ -153,9 +156,64 @@ class TestRollCallHelpers(unittest.TestCase):
 
         fake_message = Mock()
         fake_message.edit = AsyncMock()
-        result = asyncio.run(send_line_up(guild, "Alice", AttendanceType.SKATERS, guild.text_channels[0], fake_message))
+        result = asyncio.run(send_line_up(cast(discord.Guild, guild), "Alice", AttendanceType.SKATERS, guild.text_channels[0], fake_message))
 
         # Existing roll call messages should be edited in-place, not created again.
         self.assertIsNone(result)
         fake_message.edit.assert_awaited_once()
+
+    def test_build_gametime_embed_returns_expected_fields(self):
+        game_datetime = datetime(2026, 6, 7, 19, 30, tzinfo=timezone.utc)
+        embed = build_gametime_embed(game_datetime, "Sharks", "Ducks", "https://example.com/schedule")
+
+        self.assertEqual(embed.title, "Next Game")
+        self.assertEqual(embed.url, "https://example.com/schedule")
+        self.assertEqual(len(embed.fields), 3)
+        self.assertEqual(embed.fields[0].name, "Game Time:")
+        self.assertEqual(embed.fields[0].value, "Sunday June 07 at 07:30 PM")
+        self.assertEqual(embed.fields[1].name, "Home Team:")
+        self.assertEqual(embed.fields[1].value, "Sharks")
+        self.assertEqual(embed.fields[2].name, "Away Team:")
+        self.assertEqual(embed.fields[2].value, "Ducks")
+
+    @patch("tasks.rollCall.get_roll_call_channels")
+    @patch("tasks.rollCall.get_channel_config")
+    @patch("tasks.rollCall.schedule_parser.get_next_game")
+    @patch("tasks.rollCall.get_role_mention_string", new_callable=AsyncMock)
+    @patch("tasks.rollCall.lineup_embed")
+    @patch("tasks.rollCall.schedule_reminder", new=Mock(return_value=None))
+    @patch("tasks.rollCall.asyncio.create_task")
+    def test_restore_startup_rollcalls_posts_embed_and_lineup(self, create_task, lineup_embed, get_role_mention_string, get_next_game, get_channel_config, get_roll_call_channels):
+        channel = FakeChannel("roll-call")
+        guild = FakeGuild(name="test-guild", text_channels=[channel])
+        bot = Mock()
+        bot.guilds = [guild]
+
+        get_roll_call_channels.return_value = [channel]
+        channel_config = {
+            "next_game": datetime.now(timezone.utc) + timedelta(days=1),
+            "attendance": {
+                AttendanceType.SKATERS.value: [],
+                AttendanceType.SUBS.value: [],
+                AttendanceType.GOALIE.value: "",
+                AttendanceType.OUT.value: [],
+            },
+        }
+        get_channel_config.return_value = channel_config
+
+        fake_game = Mock()
+        fake_game.datetime = channel_config["next_game"]
+        fake_game.home_team = "Sharks"
+        fake_game.away_team = "Ducks"
+        get_next_game.return_value = ("https://example.com/schedule", fake_game)
+
+        get_role_mention_string.return_value = "@everyone"
+        lineup_embed.return_value = discord.Embed(title="Current Line Up")
+
+        asyncio.run(restore_startup_rollcalls(bot))
+
+        self.assertGreaterEqual(channel.send.await_count, 3)
+        self.assertEqual(channel.sent[0][1]["embed"].title, "Next Game")
+        self.assertEqual(channel.sent[1][1]["embed"].title, "Current Line Up")
+        self.assertIn("view", channel.sent[2][1])
 
