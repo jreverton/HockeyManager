@@ -1,5 +1,9 @@
 * Rename from Hakuna2.0 to something else
 
+* Reminder 2 hours before game time that pings the In folks
+
+* When loading, if message ID is stored, attempt to retrieve message and if not, repost the embed (assuming there is players in/out/etc)
+
 * Switch to using /slash commands instead of !bang commands
 * Switch to using GCP?
 
