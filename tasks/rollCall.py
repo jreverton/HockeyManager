@@ -4,7 +4,6 @@ import helper
 from guild import get_roll_call_channels, get_channel_config
 from guild.config import get_guild_config
 from guild.models import AttendanceType, ChannelConfig
-from pprint import pprint
 from schedule import parser as schedule_parser
 
 from datetime import datetime, time, timedelta, timezone
@@ -19,7 +18,7 @@ def build_gametime_embed(game_datetime: datetime, home_team: str, away_team: str
         title="Next Game",
         url=url
     )
-    gametime_embed.add_field(name="Game Time:", value=game_datetime.strftime("%A %B %d at %I:%M %p"), inline=False)
+    gametime_embed.add_field(name="Game Time:", value=f"<t:{int(game_datetime.timestamp())}:F>", inline=False)
     gametime_embed.add_field(name="Home Team:", value=home_team, inline=False)
     gametime_embed.add_field(name="Away Team:", value=away_team, inline=False)
     return gametime_embed

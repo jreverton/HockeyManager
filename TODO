@@ -1,4 +1,5 @@
-* Rename from Hakuna2.0 to something else
+*** Fix API calls to populate: team standings / player stats / team data / division standings
+
 
 * Switch to using /slash commands instead of !bang commands
 * Switch to using GCP?
@@ -17,7 +18,7 @@
 
 * Add GetPlayerStats back in using Gamesheets API
 
-* Remove reset of Hakuna config
+* Make sure we have admin commands to add/move/remove players from the Guild members list into rollcalls.
 
 
 ================ Currently working on ================
@@ -26,3 +27,53 @@
  - If a game exists with the correct timestamp, post the embed automatically.
  :: Don't post the game embed if no stored attendance (or is empty)
  :: Should we store the message_id for the RollCallView?
+
+
+
+ Fucking GS Login:
+
+ curl -X POST -H "Content-Type: application/json" -d '
+ {
+    "email": "James.Everton@gmail.com", 
+    "password": "jazfoj-hoxkax-7Wuthu", 
+    "returnSecureToken": "True", 
+    "idToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6Ijc5OTRiNGYzMTU2MzJiMjk3NzAwNmQ5M2U5NGIyYWNiZTMwNWZlNDYiLCJ0eXAiOiJKV1QifQ.eyJuYW1lIjoiSmFtZXMgRXZlcnRvbiIsInBpY3R1cmUiOiJodHRwczovL2xoMy5nb29nbGV1c2VyY29udGVudC5jb20vYS9BQ2c4b2NLek14cUhsa1FyaWdYT2JldEZTbzI4LTRiazRtSEppWWVfWVJOdXNEdTF6TXJ0dW1DVD1zOTYtYyIsImlzcyI6Imh0dHBzOi8vc2VjdXJldG9rZW4uZ29vZ2xlLmNvbS9nYW1lc2hlZXQtcHJvZHVjdGlvbiIsImF1ZCI6ImdhbWVzaGVldC1wcm9kdWN0aW9uIiwiYXV0aF90aW1lIjoxNzgwMjYwMDk4LCJ1c2VyX2lkIjoia3IybVE2cWgxR2dmR3E5SjBxMXVTY1ZFVmlaMiIsInN1YiI6ImtyMm1RNnFoMUdnZkdxOUowcTF1U2NWRVZpWjIiLCJpYXQiOjE3ODE0MDk5MTAsImV4cCI6MTc4MTQxMzUxMCwiZW1haWwiOiJqYW1lcy5ldmVydG9uQGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJmaXJlYmFzZSI6eyJpZGVudGl0aWVzIjp7Imdvb2dsZS5jb20iOlsiMTE2NjcyMDY0ODMwNDU2MTg1MzU5Il0sImVtYWlsIjpbImphbWVzLmV2ZXJ0b25AZ21haWwuY29tIl19LCJzaWduX2luX3Byb3ZpZGVyIjoicGFzc3dvcmQifX0.DfequjycPnGBwKjlWYs9_3TrmKBPFqfmtbr3dm45OUNs4RhetzPczNhz88gyc7eHw8fC5kPNDos1l1nYcaDoM-9reyN4GGjrSvPtetHBwnlslm6Y5ijJ2HUyGX4OiJcvOAKPnc3kdy_qXzDuojrYW_AulaBSy719vNKgsGgAYja34q4OJDb0dZcfCjGtzJ4jAR___gAQcnEU0ai0WbTwFQXso71asQtpSKj-atsdY9Se5u7DF_FZOTivrPl_kWM60IkwrlomIksl8zAlwHrm1Dl1P4wC5zSpPP-hyXmZlnhh8Z__hu8Nds-AA4tdN1U0ULxHAQxaGBnH2BYKDktrcA" 
+ }' "https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=AIzaSyCk5pKBFxvCMuwPchzXgvvz4XmmscJTvs8"
+
+{
+  "kind": "identitytoolkit#GetAccountInfoResponse",
+  "users": [
+    {
+      "localId": "kr2mQ6qh1GgfGq9J0q1uScVEViZ2",
+      "email": "james.everton@gmail.com",
+      "displayName": "James Everton",
+      "photoUrl": "https://lh3.googleusercontent.com/a/ACg8ocKzMxqHlkQrigXObetFSo28-4bk4mHJiYe_YRNusDu1zMrtumCT=s96-c",
+      "passwordHash": "UkVEQUNURUQ=",
+      "emailVerified": true,
+      "passwordUpdatedAt": 1778015374052,
+      "providerUserInfo": [
+        {
+          "providerId": "google.com",
+          "displayName": "James Everton",
+          "photoUrl": "https://lh3.googleusercontent.com/a/ACg8ocKzMxqHlkQrigXObetFSo28-4bk4mHJiYe_YRNusDu1zMrtumCT=s96-c",
+          "federatedId": "116672064830456185359",
+          "email": "james.everton@gmail.com",
+          "rawId": "116672064830456185359"
+        },
+        {
+          "providerId": "password",
+          "displayName": "James Everton",
+          "photoUrl": "https://lh3.googleusercontent.com/a/ACg8ocKzMxqHlkQrigXObetFSo28-4bk4mHJiYe_YRNusDu1zMrtumCT=s96-c",
+          "federatedId": "james.everton@gmail.com",
+          "email": "james.everton@gmail.com",
+          "rawId": "james.everton@gmail.com"
+        }
+      ],
+      "validSince": "1778015374",
+      "lastLoginAt": "1781406848307",
+      "createdAt": "1777577617459",
+      "customAuth": true,
+      "lastRefreshAt": "2026-06-14T04:05:10.005330Z"
+    }
+  ]
+}

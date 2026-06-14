@@ -3,6 +3,6 @@
   "venv": ".venv",
   "pythonVersion": "3.14",
   "typeCheckingMode": "basic",
-  "extraPaths": ["./Hakuna2.0"],
+  "extraPaths": ["./HockeyManager"],
   "exclude": ["data"]
 }

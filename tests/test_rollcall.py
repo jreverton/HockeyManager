@@ -170,7 +170,7 @@ class TestRollCallHelpers(unittest.TestCase):
         self.assertEqual(embed.url, "https://example.com/schedule")
         self.assertEqual(len(embed.fields), 3)
         self.assertEqual(embed.fields[0].name, "Game Time:")
-        self.assertEqual(embed.fields[0].value, "Sunday June 07 at 07:30 PM")
+        self.assertEqual(embed.fields[0].value, "<t:1780860600:F>") # "Sunday June 07 at 07:30 PM" in unix timestamp
         self.assertEqual(embed.fields[1].name, "Home Team:")
         self.assertEqual(embed.fields[1].value, "Sharks")
         self.assertEqual(embed.fields[2].name, "Away Team:")
